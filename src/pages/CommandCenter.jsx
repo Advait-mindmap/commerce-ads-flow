@@ -9,6 +9,7 @@ import AttentionRequired from '@/components/command/AttentionRequired';
 import DateRangeSelector from '@/components/command/DateRangeSelector';
 import { CardGridSkeleton, PanelSkeleton } from '@/components/common/Skeletons';
 import { inr } from '@/lib/format';
+import { useConfig } from '@/lib/ConfigContext';
 
 const SEVERITY_RANK = { critical: 4, high: 3, medium: 2, low: 1 };
 const DAY = 86400000;
@@ -16,6 +17,7 @@ const DAY = 86400000;
 export default function CommandCenter() {
   const [data, setData] = useState(null);
   const [range, setRange] = useState({ preset: 30, from: '', to: '' });
+  const { usdToInr } = useConfig();
 
   useEffect(() => {
     (async () => {
@@ -96,7 +98,7 @@ export default function CommandCenter() {
     qualified: todayRuns.filter((r) => r.outcome === 'qualified' || r.outcome === 'meeting_booked').length,
     booked: todayRuns.filter((r) => r.outcome === 'meeting_booked').length,
     escalated: todayRuns.filter((r) => r.outcome === 'escalated' || (r.escalation && r.escalation.triggered)).length,
-    costInr: todayRuns.reduce((a, r) => a + (r.cost_usd || 0), 0) * 83
+    costInr: usdToInr(todayRuns.reduce((a, r) => a + (r.cost_usd || 0), 0))
   };
 
   const weeklyBooked = Array.from({ length: 7 }, (_, i) => {

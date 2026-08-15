@@ -2,7 +2,7 @@ import { base44 } from '@/api/base44Client';
 
 const wait = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
-export async function dialOne(leadIdOrLead) {
+export async function dialOne(leadIdOrLead, options = {}) {
   const lead_id = typeof leadIdOrLead === 'object' ? leadIdOrLead?.id || leadIdOrLead?.lead_id : leadIdOrLead;
 
   if (!lead_id) {
@@ -15,7 +15,7 @@ export async function dialOne(leadIdOrLead) {
   }
 
   try {
-    const res = await base44.functions.invoke('bolnaCall', { lead_id });
+    const res = await base44.functions.invoke('bolnaCall', { lead_id, ...options });
     const data = res && typeof res === 'object' && 'data' in res ? res.data : res;
 
     if (data && data.blocked) {
@@ -70,14 +70,14 @@ export async function dialOne(leadIdOrLead) {
   }
 }
 
-export async function dialSequentially(leads, onProgress) {
+export async function dialSequentially(leads, onProgress, options = {}) {
   const results = [];
   const items = Array.isArray(leads) ? leads : [];
 
   for (let index = 0; index < items.length; index += 1) {
     const lead = items[index];
     const leadId = lead?.id || lead;
-    const result = await dialOne(leadId);
+    const result = await dialOne(leadId, options);
     results.push(result);
 
     onProgress?.({

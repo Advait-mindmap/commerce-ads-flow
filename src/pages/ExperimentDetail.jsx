@@ -8,8 +8,7 @@ import LiftRangeBar from '@/components/experiments/LiftRangeBar';
 import StatsGrid from '@/components/experiments/StatsGrid';
 import GuardrailsTable from '@/components/experiments/GuardrailsTable';
 import DecisionLog from '@/components/experiments/DecisionLog';
-
-const AUTOSTOP_KEY = 'exp_sdr_script_v3_empathy_open';
+import { dateOnly } from '@/lib/format';
 
 export default function ExperimentDetail() {
   const { id } = useParams();
@@ -37,13 +36,21 @@ export default function ExperimentDetail() {
   }
   const { exp, logs } = data;
 
+  // Rendered from the experiment's own guardrail rows and stop date rather than
+  // a banner hardcoded to one experiment key.
+  const breached = (exp.guardrails || []).filter((g) => g.breach);
+
   return (
     <div className="p-6 space-y-4">
       <Breadcrumbs parent="Experiments" parentTo="/experiments" current={exp.name} />
 
-      {exp.experiment_key === AUTOSTOP_KEY && (
+      {exp.status === 'stopped_guardrail' && (
         <div className="rounded-lg px-4 py-3 text-[13px] text-red-800" style={{ backgroundColor: '#FEF2F2', border: '1px solid #FECACA' }}>
-          Auto-stopped 12 Jul 2026 — guardrail breach on seller complaint rate, +31% vs control, p=0.03
+          Auto-stopped{exp.ended_at ? ` ${dateOnly(exp.ended_at)}` : ''}
+          {breached.length > 0 && (
+            <> — guardrail breach on {breached.map((g) => `${(g.metric || '').replace(/_/g, ' ')} (${g.control} → ${g.treatment}, p=${g.p_value})`).join('; ')}</>
+          )}
+          {breached.length === 0 && ' on a guardrail metric'}
         </div>
       )}
 

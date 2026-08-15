@@ -71,7 +71,7 @@ const clamp = (v, lo, hi) => Math.max(lo, Math.min(hi, v));
  * 24 weekly points. Sellers under pressure get a decaying tail; the headline
  * decline is computed from the series afterwards so the two always agree.
  */
-function buildTrafficSeries(r, { basePeak, decayStrength, gmvBase }) {
+function buildTrafficSeries(r, { basePeak, decayStrength, gmvBase, basePosition }) {
   const points = [];
   for (let i = 0; i < 24; i += 1) {
     const weeksFromEnd = 23 - i;
@@ -83,7 +83,11 @@ function buildTrafficSeries(r, { basePeak, decayStrength, gmvBase }) {
     const organic = Math.max(120, Math.round(basePeak * decayFactor * seasonal * noise));
     // GMV tracks organic traffic with a lag and a floor from repeat buyers.
     const gmv = Math.round(gmvBase * (0.36 + 0.64 * (organic / basePeak)) * r.float(0.94, 1.06));
-    points.push({ week: `W${String(i + 1).padStart(2, '0')}`, organic, gmv });
+    // Search position is recorded per week rather than reconstructed in the UI
+    // from a single 90-day delta. Higher number = worse rank, so it rises as
+    // organic visibility falls.
+    const position = Number((basePosition / Math.max(0.35, decayFactor) + r.float(-0.15, 0.15)).toFixed(2));
+    points.push({ week: `W${String(i + 1).padStart(2, '0')}`, organic, gmv, position });
   }
   return points;
 }
@@ -110,7 +114,8 @@ function buildSellers(r) {
     const decayStrength = { none: sr.float(-0.04, 0.03), mild: sr.float(0.06, 0.16), real: sr.float(0.2, 0.34), severe: sr.float(0.36, 0.55) }[pressure];
     const basePeak = Math.round(sr.float(9000, 52000) * (tierMultiplier ** 0.55));
 
-    const traffic_series = buildTrafficSeries(sr, { basePeak, decayStrength, gmvBase });
+    const basePosition = Number(sr.float(1.8, 6.5).toFixed(2));
+    const traffic_series = buildTrafficSeries(sr, { basePeak, decayStrength, gmvBase, basePosition });
 
     // Decline is derived, never invented: last 4 weeks vs the 4 before them.
     const recent = traffic_series.slice(-4).reduce((a, p) => a + p.organic, 0);
@@ -124,8 +129,11 @@ function buildSellers(r) {
 
     const sku_count = Math.round(sr.float(18, 140) * (tierMultiplier ** 0.6));
     const sku_added_30d = sr.bool(0.62) ? sr.int(1, Math.max(2, Math.round(sku_count * 0.18))) : 0;
-    const avg_position = Number(sr.float(2.1, 9.4).toFixed(1));
-    const position_loss_90d = Number(clamp(organic_impr_decline * sr.float(18, 30), 0, 14).toFixed(1));
+    // Both derived from the position series, so the Traffic tab's chart, the
+    // headline position and the 90-day delta cannot disagree.
+    const avg_position = Number(traffic_series[traffic_series.length - 1].position.toFixed(1));
+    const positionThen = traffic_series[traffic_series.length - 13].position;
+    const position_loss_90d = Number(clamp(avg_position - positionThen, 0, 14).toFixed(1));
     const category_sov = Number(clamp(sr.float(0.004, 0.09) * (tierMultiplier ** 0.35), 0.001, 0.34).toFixed(4));
     const tenure_days = sr.int(45, 1900);
 
@@ -297,12 +305,12 @@ function buildContacts(r, sellers) {
 
 function buildAdPackages() {
   return [
-    { id: 'pkg_starter', code: 'STARTER', name: 'Starter Visibility', description: 'Entry sponsored-listing placement for sellers testing paid traffic for the first time.', min_budget: 5000, max_budget: 25000, avg_roas_delivered: 3.1, historical_close_rate: 0.42, historical_retention_90d: 0.58, eligible_categories: [] },
-    { id: 'pkg_growth', code: 'GROWTH', name: 'Growth Sponsored Listings', description: 'Sponsored listings across the seller top 30 SKUs with weekly bid management.', min_budget: 25000, max_budget: 90000, avg_roas_delivered: 4.2, historical_close_rate: 0.36, historical_retention_90d: 0.67, eligible_categories: [] },
-    { id: 'pkg_category', code: 'CATEGORY', name: 'Category Dominance', description: 'Top-of-search placement plus category banner rotation for established sellers.', min_budget: 90000, max_budget: 300000, avg_roas_delivered: 4.8, historical_close_rate: 0.28, historical_retention_90d: 0.74, eligible_categories: [] },
-    { id: 'pkg_brand', code: 'BRAND', name: 'Brand Storefront', description: 'Dedicated storefront, homepage banner slots and search keyword ownership.', min_budget: 300000, max_budget: 1200000, avg_roas_delivered: 5.4, historical_close_rate: 0.21, historical_retention_90d: 0.81, eligible_categories: ['Fashion & Apparel', 'Electronics & Accessories', 'Beauty & Personal Care', 'Home & Kitchen'] },
-    { id: 'pkg_festive', code: 'FESTIVE', name: 'Festive Burst', description: 'Short-cycle high-intensity placement built around festive demand peaks.', min_budget: 40000, max_budget: 250000, avg_roas_delivered: 5.9, historical_close_rate: 0.47, historical_retention_90d: 0.41, eligible_categories: [] },
-    { id: 'pkg_managed', code: 'MANAGED', name: 'Managed Performance', description: 'Fully managed campaigns with a dedicated strategist and monthly reviews.', min_budget: 150000, max_budget: 900000, avg_roas_delivered: 5.1, historical_close_rate: 0.24, historical_retention_90d: 0.86, eligible_categories: [] }
+    { id: 'pkg_starter', code: 'STARTER', name: 'Starter Visibility', description: 'Entry sponsored-listing placement for sellers testing paid traffic for the first time.', min_budget: 5000, max_budget: 25000, avg_roas_delivered: 3.1, roas_p25: 2.2, roas_p75: 3.9, historical_close_rate: 0.42, historical_retention_90d: 0.58, eligible_categories: [] },
+    { id: 'pkg_growth', code: 'GROWTH', name: 'Growth Sponsored Listings', description: 'Sponsored listings across the seller top 30 SKUs with weekly bid management.', min_budget: 25000, max_budget: 90000, avg_roas_delivered: 4.2, roas_p25: 3.3, roas_p75: 5.1, historical_close_rate: 0.36, historical_retention_90d: 0.67, eligible_categories: [] },
+    { id: 'pkg_category', code: 'CATEGORY', name: 'Category Dominance', description: 'Top-of-search placement plus category banner rotation for established sellers.', min_budget: 90000, max_budget: 300000, avg_roas_delivered: 4.8, roas_p25: 3.7, roas_p75: 6.0, historical_close_rate: 0.28, historical_retention_90d: 0.74, eligible_categories: [] },
+    { id: 'pkg_brand', code: 'BRAND', name: 'Brand Storefront', description: 'Dedicated storefront, homepage banner slots and search keyword ownership.', min_budget: 300000, max_budget: 1200000, avg_roas_delivered: 5.4, roas_p25: 4.1, roas_p75: 6.8, historical_close_rate: 0.21, historical_retention_90d: 0.81, eligible_categories: ['Fashion & Apparel', 'Electronics & Accessories', 'Beauty & Personal Care', 'Home & Kitchen'] },
+    { id: 'pkg_festive', code: 'FESTIVE', name: 'Festive Burst', description: 'Short-cycle high-intensity placement built around festive demand peaks.', min_budget: 40000, max_budget: 250000, avg_roas_delivered: 5.9, roas_p25: 4.2, roas_p75: 7.9, historical_close_rate: 0.47, historical_retention_90d: 0.41, eligible_categories: [] },
+    { id: 'pkg_managed', code: 'MANAGED', name: 'Managed Performance', description: 'Fully managed campaigns with a dedicated strategist and monthly reviews.', min_budget: 150000, max_budget: 900000, avg_roas_delivered: 5.1, roas_p25: 4.3, roas_p75: 6.2, historical_close_rate: 0.24, historical_retention_90d: 0.86, eligible_categories: [] }
   ];
 }
 
@@ -412,6 +420,14 @@ function buildExperiments() {
       unit_type: d.unit,
       primary_metric: d.metric,
       required_n_per_arm: d.required,
+      // Read by the decision log; without these it rendered "baseline 0.0%".
+      baseline_rate: Number(cRate.toFixed(4)),
+      mde_relative: Number(er.float(0.08, 0.15).toFixed(3)),
+      status_note: d.breach
+        ? 'Stopped early by the guardrail monitor; treatment arm disabled and traffic returned to control.'
+        : d.status === 'concluded'
+          ? (d.significant ? 'Treatment promoted to default for all new units.' : 'No significant difference — control retained.')
+          : 'Accruing sample; no decision taken yet.',
       arms: [
         { variant: 'control', n: cn, conversions: cc, rate: Number(cRate.toFixed(4)) },
         { variant: 'treatment', n: tn, conversions: tc, rate: Number(tRate.toFixed(4)) }
@@ -560,6 +576,7 @@ function buildFunnel(r, sellers, packages, experiments) {
       agentRuns.push({
         id: runId,
         agent_key: 'sdr_qualification',
+        agent_name: 'AI SDR (Meera)',
         lead_id: leadId,
         seller_id: seller.id,
         seller_name: seller.display_name,
@@ -743,6 +760,7 @@ function buildTodayRuns(r, sellers, leads) {
     runs.push({
       id: runId,
       agent_key: 'sdr_qualification',
+      agent_name: 'AI SDR (Meera)',
       lead_id: lead.id,
       seller_id: seller.id,
       seller_name: seller.display_name,
@@ -854,6 +872,21 @@ function buildCampaigns(r, sellers, opportunities, packages) {
     const spend_30d = Math.round(monthly_budget * budget_utilization);
     const revenue_30d = Math.round(spend_30d * roas_30d);
 
+    // Chosen from this campaign's own dominant churn driver. Lives on the
+    // record so the recommendation travels with the data (CSV export, API
+    // consumers) instead of being reconstructed inside one component.
+    const topDriver = drivers.slice().sort((a, b) => b.contribution - a.contribution)[0];
+    const INTERVENTIONS = {
+      roas_decline: 'Run keyword pruning and a bid rebalance, then share a recovery plan on a rep call.',
+      budget_underspend: 'Raise the daily cap and expand match types to recover lost impression share.',
+      keyword_waste: 'Add negative keywords for the wasted-spend cohort and reallocate to top converters.',
+      no_rep_contact: 'Book a check-in within 48 hours with a performance review deck.',
+      pause_churn: 'Offer a managed-service trial for one cycle to stabilise campaign uptime.',
+      seasonal_softness: 'Hold budget and revisit after the seasonal dip; flag for review in two weeks.'
+    };
+    const recommended_intervention = INTERVENTIONS[topDriver.driver]
+      || `Address ${topDriver.driver.replace(/_/g, ' ')} with a rep-led performance review.`;
+
     // Recommendations follow from the drivers rather than being random.
     const optimization_actions = [];
     if (drivers.some((d) => d.driver === 'keyword_waste')) {
@@ -917,6 +950,7 @@ function buildCampaigns(r, sellers, opportunities, packages) {
       churn_p30,
       churn_band,
       churn_drivers: drivers,
+      recommended_intervention,
       optimization_actions,
       started_at: new Date(Date.now() - days_active * DAY).toISOString()
     });

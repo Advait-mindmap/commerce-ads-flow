@@ -6,6 +6,7 @@ import { fileURLToPath } from 'url';
 import dotenv from 'dotenv';
 
 import { initSchema, pool } from './server/db.js';
+import { router as configRouter, startConfig } from './server/config.js';
 import { attachUser, router as authRouter } from './server/auth.js';
 import { router as entitiesRouter } from './server/entities.js';
 import { resumeInFlight, router as functionsRouter } from './server/functions.js';
@@ -42,6 +43,10 @@ app.get('/api/health', async (_req, res) => {
   return res.status(dbReady ? 200 : 503).json(body);
 });
 
+// Runtime config carries no secrets and the shell reads it before any entity
+// call, so it sits outside the auth boundary.
+app.use('/api/config', configRouter);
+
 app.use(attachUser);
 app.use('/api/auth', authRouter);
 app.use('/api/functions', functionsRouter);
@@ -71,6 +76,9 @@ if (hasDist) {
 }
 
 async function boot() {
+  // Independent of the database — the shell still needs FX and environment.
+  await startConfig();
+
   if (!process.env.DATABASE_URL) {
     bootError = 'DATABASE_URL is not set — the API cannot serve data.';
     console.error(`[boot] ${bootError}`);

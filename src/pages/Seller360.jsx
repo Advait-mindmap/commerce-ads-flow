@@ -30,9 +30,10 @@ export default function Seller360() {
   const { id } = useParams();
   const navigate = useNavigate();
   const { toast } = useToast();
-  const { hasCap } = useAuth();
+  const { hasCap, user } = useAuth();
   const [data, setData] = useState(null);
   const [callNotice, setCallNotice] = useState(null);
+  const [busy, setBusy] = useState(false);
 
   useEffect(() => {
     (async () => {
@@ -76,9 +77,38 @@ export default function Seller360() {
   const { seller, campaigns, interactions, leads, experiments, model, medianSov } = data;
   const assignments = (leads.find((l) => l.experiment_assignments) || {}).experiment_assignments;
 
+  /**
+   * Every action on this screen hangs off a Lead. A seller with none yet needs
+   * a real one created first — the previous synthetic `${seller.id}-call` id
+   * does not exist server-side, so the dial 404'd against it.
+   */
+  const ensureLead = async () => {
+    const existing = (leads || []).find((l) => l.seller_id === seller.id);
+    if (existing) return existing;
+
+    const created = await base44.entities.Lead.create({
+      seller_id: seller.id,
+      seller_name: seller.display_name,
+      category: seller.category,
+      source: 'manual_seller_360',
+      mql_trigger: `Rep initiated contact from Seller 360 — PTA band ${seller.pta_band}`,
+      mql_at: new Date().toISOString(),
+      stage: 'mql',
+      pta_band: seller.pta_band,
+      pta_score: seller.pta_score,
+      pta_reasons: seller.pta_reasons,
+      budget_target: seller.budget_target,
+      contact_phone: seller.contact_phone,
+      suppression_status: 'none',
+      agent_attempts: 0,
+      sla_status: 'on_track'
+    });
+    setData((d) => ({ ...d, leads: [...(d.leads || []), created] }));
+    return created;
+  };
+
   const handleCallNow = async () => {
-    const matches = (leads || []).filter((lead) => lead.seller_id === seller.id);
-    const lead = matches[0] || { id: `${seller.id}-call`, seller_id: seller.id, seller_name: seller.display_name };
+    const lead = await ensureLead();
     const result = await dialOne(lead.id);
 
     if (result.status === 'blocked') {
@@ -102,15 +132,53 @@ export default function Seller360() {
       <Breadcrumbs parent="Sellers" parentTo="/sellers" current={seller.display_name} />
       <SellerHeader
         seller={seller}
-        onAction={async (msg) => {
-          await logAudit({
-            action: msg.toLowerCase().replace(/\s+/g, '_'),
-            entity_type: 'Seller',
-            entity_id: seller.id,
-            entity_name: seller.display_name,
-            summary: `${msg} from Seller 360`
-          });
-          toast({ title: msg, description: seller.display_name });
+        busy={busy}
+        onAction={async (action) => {
+          setBusy(true);
+          try {
+            const lead = await ensureLead();
+
+            if (action === 'sequence') {
+              await base44.entities.Sequence.create({
+                seller_id: seller.id,
+                seller_name: seller.display_name,
+                lead_id: lead.id,
+                sequence_type: 'nurture',
+                channel: 'whatsapp',
+                step_number: 1,
+                total_steps: 4,
+                status: 'active',
+                next_send_at: new Date(Date.now() + 86400000).toISOString()
+              });
+              await logAudit({
+                action: 'lead_added_to_sequence',
+                entity_type: 'Seller',
+                entity_id: seller.id,
+                entity_name: seller.display_name,
+                summary: 'Enrolled in a 4-step WhatsApp nurture sequence from Seller 360'
+              });
+              toast({ title: 'Added to sequence', description: `${seller.display_name} · 4-step WhatsApp nurture` });
+            }
+
+            if (action === 'assign') {
+              const repName = user?.full_name || user?.email;
+              await base44.entities.Lead.update(lead.id, { assigned_rep_name: repName, assigned_rep_id: user?.id });
+              await logAudit({
+                action: 'lead_assigned',
+                entity_type: 'Seller',
+                entity_id: seller.id,
+                entity_name: seller.display_name,
+                summary: `Assigned to ${repName} from Seller 360`,
+                before_value: lead.assigned_rep_name,
+                after_value: repName
+              });
+              toast({ title: 'Assigned', description: `${seller.display_name} → ${repName}` });
+            }
+          } catch (err) {
+            toast({ title: 'Action failed', description: err.message, variant: 'destructive' });
+          } finally {
+            setBusy(false);
+          }
         }}
         onCallNow={handleCallNow}
         callNotice={callNotice}

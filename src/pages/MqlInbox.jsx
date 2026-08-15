@@ -7,6 +7,7 @@ import MqlBulkBar from '@/components/mql/MqlBulkBar';
 import ExportCsvButton from '@/components/common/ExportCsvButton';
 import { TableSkeleton } from '@/components/common/Skeletons';
 import { logAudit } from '@/lib/audit';
+import { dialSequentially } from '@/lib/dialer';
 
 const CSV_COLUMNS = [
   { key: 'seller_name', label: 'Seller' },
@@ -60,31 +61,34 @@ export default function MqlInbox() {
   const queue = async (ids) => {
     setBusy(true);
     toast({ title: `Queueing ${ids.length} lead(s)…` });
-    const now = new Date().toISOString();
-    await Promise.all(ids.map((id) => {
-      const lead = leads.find((l) => l.id === id);
-      return base44.entities.AgentRun.create({
-        agent_key: 'sdr_qualification',
-        lead_id: id,
-        seller_id: lead.seller_id,
-        seller_name: lead.seller_name,
-        contact_phone: lead.contact_phone,
-        channel: 'voice_out',
-        status: 'queued',
-        started_at: now
-      });
-    }));
-    await Promise.all(ids.map((id) => logAudit({
+
+    // Routed through bolnaCall so every dial passes the suppression gate. The
+    // previous version wrote AgentRun rows straight to the database, which
+    // skipped the gate entirely and left the calls stuck in "queued" forever.
+    const summary = await dialSequentially(ids.map((id) => ({ id })), () => {});
+
+    await Promise.all(summary.dialled.map((d) => logAudit({
       action: 'lead_queued_for_ai_sdr',
       entity_type: 'Lead',
-      entity_id: id,
-      entity_name: (leads.find((l) => l.id === id) || {}).seller_name,
+      entity_id: d.lead_id,
+      entity_name: (leads.find((l) => l.id === d.lead_id) || {}).seller_name,
       summary: 'Queued an AI SDR qualification call from the MQL inbox'
     })));
-    applyLocal(ids, { last_agent_contact_at: now });
+
+    applyLocal(summary.dialled.map((d) => d.lead_id), { last_agent_contact_at: new Date().toISOString() });
     setSelected([]);
     setBusy(false);
-    toast({ title: `${ids.length} lead(s) queued for AI SDR` });
+
+    // Blocks are surfaced, not swallowed — the gate's reasons are the point.
+    if (summary.blocked.length) {
+      toast({
+        title: `${summary.dialled.length} dialled · ${summary.blocked.length} blocked`,
+        description: summary.blocked.slice(0, 3).map((b) => b.reason).join(' · '),
+        variant: summary.dialled.length ? 'default' : 'destructive'
+      });
+    } else {
+      toast({ title: `${summary.dialled.length} lead(s) queued for AI SDR`, description: summary.text });
+    }
   };
 
   const addToSequence = async (ids) => {

@@ -3,11 +3,13 @@ import { Link } from 'react-router-dom';
 import OutcomeBadge from '@/components/common/OutcomeBadge';
 import SentimentBar from '@/components/common/SentimentBar';
 import { mmss, timeOnly, inrFull } from '@/lib/format';
+import { useConfig } from '@/lib/ConfigContext';
 
 const HEADERS = ['Time', 'Seller', 'Agent/Rep', 'Channel', 'Duration', 'Outcome', 'Sentiment', 'Script', 'Cost', ''];
 
 export default function RunsTable({ runs }) {
   const [tick, setTick] = useState(0);
+  const { usdToInr } = useConfig();
 
   useEffect(() => {
     const id = setInterval(() => setTick((t) => t + 1), 1000);
@@ -46,7 +48,7 @@ export default function RunsTable({ runs }) {
                 <td className="px-3 py-2">{live ? <span className="text-[11px] text-slate-500">in progress</span> : <OutcomeBadge outcome={r.outcome} />}</td>
                 <td className="px-3 py-2"><SentimentBar value={r.overall_sentiment || 0} /></td>
                 <td className="px-3 py-2 text-xs text-slate-600">{r.script_variant || '—'}</td>
-                <td className="px-3 py-2 text-[13px] text-slate-700 tabular-nums">{inrFull((r.cost_usd || 0) * 83)}</td>
+                <td className="px-3 py-2 text-[13px] text-slate-700 tabular-nums">{inrFull(usdToInr(r.cost_usd))}</td>
                 <td className="px-3 py-2">
                   <Link to={`/sdr/calls/${r.id}`} className="text-xs text-blue-800 hover:underline">View</Link>
                 </td>

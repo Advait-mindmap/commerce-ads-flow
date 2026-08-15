@@ -11,7 +11,7 @@ const STATUS = {
   churned: 'bg-slate-100 text-slate-600 border-slate-200'
 };
 
-export default function SellerHeader({ seller, onAction, onCallNow, callNotice, canDial = true }) {
+export default function SellerHeader({ seller, onAction, onCallNow, callNotice, canDial = true, busy = false }) {
   return (
     <div className="space-y-3">
       <div className="bg-white border border-slate-200 rounded-lg p-4 flex flex-wrap gap-4 items-start justify-between">
@@ -33,15 +33,13 @@ export default function SellerHeader({ seller, onAction, onCallNow, callNotice, 
               Budget {inr(seller.budget_low)}–{inr(seller.budget_stretch)} (target {inr(seller.budget_target)})
             </span>
           </div>
+          {/* "Queue AI SDR" was dropped: with the suppression gate in front of
+              every dial it did exactly what "Call now" does, as a second button
+              implying a different behaviour. */}
           <div className="flex gap-1.5 flex-wrap justify-end">
-            {canDial && (
-              <>
-                <Button size="sm" className="h-8 text-xs" onClick={onCallNow}>Call now</Button>
-                <Button size="sm" className="h-8 text-xs" onClick={() => onAction('Queued for AI SDR')}>Queue AI SDR</Button>
-              </>
-            )}
-            <Button size="sm" variant="outline" className="h-8 text-xs" onClick={() => onAction('Added to sequence')}>Add to sequence</Button>
-            <Button size="sm" variant="outline" className="h-8 text-xs" onClick={() => onAction('Rep assigned')}>Assign rep</Button>
+            {canDial && <Button size="sm" className="h-8 text-xs" disabled={busy} onClick={onCallNow}>Call now</Button>}
+            <Button size="sm" variant="outline" className="h-8 text-xs" disabled={busy} onClick={() => onAction('sequence')}>Add to sequence</Button>
+            <Button size="sm" variant="outline" className="h-8 text-xs" disabled={busy} onClick={() => onAction('assign')}>Assign to me</Button>
           </div>
         </div>
       </div>

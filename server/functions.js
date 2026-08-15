@@ -320,6 +320,7 @@ const handlers = {
     await insertRow('AgentRun', {
       id: runId,
       agent_key: 'sdr_qualification',
+      agent_name: 'AI SDR (Meera)',
       lead_id: leadId,
       seller_id: seller.id,
       seller_name: seller.display_name,

@@ -24,10 +24,9 @@ function Gauge({ label, value, median }) {
 
 export default function TrafficTab({ seller, categoryMedianSov }) {
   const series = (seller.traffic_series || []).slice(-24);
-  const posSeries = series.map((p, i) => ({
-    week: p.week,
-    position: (seller.avg_position || 3) + (seller.position_loss_90d || 0) * ((series.length - i) / series.length)
-  }));
+  // Recorded per week alongside impressions, not reconstructed from a single
+  // 90-day delta — so this line reflects what actually happened.
+  const posSeries = series.filter((p) => p.position != null).map((p) => ({ week: p.week, position: p.position }));
 
   return (
     <div className="space-y-4">

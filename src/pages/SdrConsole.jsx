@@ -12,9 +12,9 @@ import BatchDialModal from '@/components/sdr/BatchDialModal';
 import { inrFull } from '@/lib/format';
 import { dialSequentially } from '@/lib/dialer';
 import { useAuth } from '@/lib/AuthContext';
+import { useConfig } from '@/lib/ConfigContext';
 
 const DAY = 86400000;
-const LIVE_VARIANT = 'v3_signal_open';
 
 export default function SdrConsole() {
   const [runs, setRuns] = useState(null);
@@ -22,13 +22,18 @@ export default function SdrConsole() {
   const [modalOpen, setModalOpen] = useState(false);
   const { toast } = useToast();
   const { hasCap } = useAuth();
+  const { usdToInr } = useConfig();
   const canDial = hasCap('dial');
 
   useEffect(() => {
-    Promise.all([
+    Promise.allSettled([
       base44.entities.AgentRun.list('-started_at', 500),
       base44.entities.Lead.list(null, 500)
-    ]).then(([r, l]) => { setRuns(r); setLeads(l); });
+    ]).then((settled) => {
+      const [r, l] = settled.map((s) => (s.status === 'fulfilled' ? s.value : []));
+      setRuns(r);
+      setLeads(l);
+    });
   }, []);
 
   const view = useMemo(() => {
@@ -38,7 +43,25 @@ export default function SdrConsole() {
     const week = runs.filter((r) => r.started_at && now - new Date(r.started_at).getTime() < 7 * DAY);
 
     const booked = today.filter((r) => r.outcome === 'meeting_booked').length;
-    const costInr = today.reduce((a, r) => a + (r.cost_usd || 0), 0) * 83;
+    const costInr = usdToInr(today.reduce((a, r) => a + (r.cost_usd || 0), 0));
+
+    // The live script is whichever variant the floor is actually dialling most
+    // today, not a constant pinned in the source.
+    const variantCounts = {};
+    today.forEach((r) => { if (r.script_variant) variantCounts[r.script_variant] = (variantCounts[r.script_variant] || 0) + 1; });
+    const variantsByUse = Object.entries(variantCounts).sort((a, b) => b[1] - a[1]);
+    const allVariants = Array.from(new Set(runs.map((r) => r.script_variant).filter(Boolean)));
+
+    // Projected next dial comes from the observed cadence between today's calls
+    // rather than a fixed offset. With fewer than two calls there is no cadence
+    // to measure, so it reports nothing instead of inventing a time.
+    const starts = today.map((r) => new Date(r.started_at).getTime()).sort((a, b) => a - b);
+    let nextDialAt = null;
+    if (starts.length >= 2) {
+      const gaps = starts.slice(1).map((t, i) => t - starts[i]).sort((a, b) => a - b);
+      const medianGap = gaps[Math.floor(gaps.length / 2)];
+      nextDialAt = new Date(starts[starts.length - 1] + medianGap);
+    }
 
     const outcomeCounts = {};
     week.forEach((r) => { if (r.outcome) outcomeCounts[r.outcome] = (outcomeCounts[r.outcome] || 0) + 1; });
@@ -67,21 +90,28 @@ export default function SdrConsole() {
       },
       outcomes: Object.entries(outcomeCounts).map(([name, value]) => ({ name, value })).sort((a, b) => b.value - a.value),
       objections: Object.entries(objCounts).map(([type, count]) => ({ type, count })).sort((a, b) => b.count - a.count).slice(0, 6),
-      escalations: runs.filter((r) => r.escalation && r.escalation.triggered && r.escalation.status === 'open').slice(0, 5)
+      escalations: runs.filter((r) => r.escalation && r.escalation.triggered && r.escalation.status === 'open').slice(0, 5),
+      liveVariant: variantsByUse.length ? variantsByUse[0][0] : null,
+      variantOptions: allVariants,
+      nextDialAt
     };
-  }, [runs, leads]);
+  }, [runs, leads, usdToInr]);
 
   if (!view) return <div className="p-6 text-sm text-slate-500">Loading SDR console…</div>;
 
-  const nextDial = new Date(Date.now() + 4 * 60000).toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit', hour12: false });
+  const nextDial = view.nextDialAt
+    ? view.nextDialAt.toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit', hour12: false })
+    : '—';
 
   return (
     <div className="p-6 space-y-4">
       <div className="flex flex-wrap items-center gap-3">
         <h1 className="text-base font-semibold text-slate-900">AI SDR Console</h1>
-        <span className="text-[11px] uppercase tracking-wide text-slate-500 border border-slate-200 bg-white rounded px-2 py-1">
-          Live script · {LIVE_VARIANT}
-        </span>
+        {view.liveVariant && (
+          <span className="text-[11px] uppercase tracking-wide text-slate-500 border border-slate-200 bg-white rounded px-2 py-1">
+            Live script · {view.liveVariant}
+          </span>
+        )}
         {canDial ? (
           <Button size="sm" className="ml-auto h-8 text-xs" onClick={() => setModalOpen(true)}>Start batch dial</Button>
         ) : (
@@ -104,12 +134,15 @@ export default function SdrConsole() {
       <BatchDialModal
         open={modalOpen}
         onOpenChange={setModalOpen}
-        liveVariant={LIVE_VARIANT}
+        liveVariant={view.liveVariant}
+        variantOptions={view.variantOptions}
         onDial={async ({ band, maxDials, variant }, onProgress) => {
           const rows = leads.filter((lead) => lead.pta_band === band && (lead.stage === 'mql' || lead.stage === 'sql'));
           const selected = rows.slice(0, maxDials || rows.length);
-          const summary = await dialSequentially(selected, onProgress);
+          const summary = await dialSequentially(selected, onProgress, { script_variant: variant });
           toast({ title: 'Batch dial complete', description: `${summary.text} · ${variant}` });
+          // Reflect the new calls without a reload.
+          setRuns(await base44.entities.AgentRun.list('-started_at', 500));
           return summary;
         }}
       />

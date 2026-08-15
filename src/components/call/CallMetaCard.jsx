@@ -4,6 +4,7 @@ import Panel from '@/components/common/Panel';
 import PtaBadge from '@/components/common/PtaBadge';
 import OutcomeBadge from '@/components/common/OutcomeBadge';
 import { mmss, inrFull, dateTime } from '@/lib/format';
+import { useConfig } from '@/lib/ConfigContext';
 
 function Row({ label, children }) {
   return (
@@ -15,6 +16,7 @@ function Row({ label, children }) {
 }
 
 export default function CallMetaCard({ run, seller, contact }) {
+  const { usdToInr } = useConfig();
   return (
     <Panel title="Call">
       <div className="pb-3 mb-1 border-b border-slate-200">
@@ -31,11 +33,11 @@ export default function CallMetaCard({ run, seller, contact }) {
       </div>
       <Row label="Contact">{contact ? `${contact.full_name} · ${contact.role}` : '—'}</Row>
       <Row label="Phone">{run.contact_phone || (contact && contact.phone) || '—'}</Row>
-      <Row label="Agent">AI SDR (Meera)</Row>
+      <Row label="Agent">{run.agent_name || '—'}</Row>
       <Row label="Script">{run.script_variant || '—'}</Row>
       <Row label="Language">{run.language || '—'}</Row>
       <Row label="Duration">{mmss(run.duration_sec)}</Row>
-      <Row label="Cost">{inrFull((run.cost_usd || 0) * 83)}</Row>
+      <Row label="Cost">{inrFull(usdToInr(run.cost_usd))}</Row>
       <Row label="Timestamp">{dateTime(run.started_at)}</Row>
       <Row label="Outcome"><OutcomeBadge outcome={run.outcome} /></Row>
       <Row label="Signature">

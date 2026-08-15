@@ -1,14 +1,24 @@
-import React, { useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 
-export default function BatchDialModal({ open, onOpenChange, onDial, liveVariant }) {
+export default function BatchDialModal({ open, onOpenChange, onDial, liveVariant, variantOptions = [] }) {
   const [band, setBand] = useState('A');
   const [maxDials, setMaxDials] = useState(25);
   const [variant, setVariant] = useState(liveVariant);
+
+  // Options come from the script variants actually present in the call history,
+  // so the list cannot drift from what the dialer can really run.
+  const options = useMemo(() => {
+    const set = new Set(variantOptions.filter(Boolean));
+    if (liveVariant) set.add(liveVariant);
+    return Array.from(set).sort();
+  }, [variantOptions, liveVariant]);
+
+  useEffect(() => { if (liveVariant && !variant) setVariant(liveVariant); }, [liveVariant, variant]);
   const [busy, setBusy] = useState(false);
   const [progress, setProgress] = useState(null);
   const [summary, setSummary] = useState(null);
@@ -51,9 +61,9 @@ export default function BatchDialModal({ open, onOpenChange, onDial, liveVariant
             <Select value={variant} onValueChange={setVariant}>
               <SelectTrigger className="h-9 text-xs"><SelectValue /></SelectTrigger>
               <SelectContent>
-                <SelectItem value="v3_signal_open">v3_signal_open (live)</SelectItem>
-                <SelectItem value="v2_benefit_open">v2_benefit_open</SelectItem>
-                <SelectItem value="v1_control">v1_control</SelectItem>
+                {options.map((v) => (
+                  <SelectItem key={v} value={v}>{v}{v === liveVariant ? ' (live)' : ''}</SelectItem>
+                ))}
               </SelectContent>
             </Select>
           </div>

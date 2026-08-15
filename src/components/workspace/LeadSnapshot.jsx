@@ -44,7 +44,15 @@ export default function LeadSnapshot({ seller, pkg, lastInteraction }) {
               <p className="text-xs text-slate-600 mt-1">{pkg.description}</p>
               <div className="grid grid-cols-2 gap-2 mt-3">
                 <Stat label="Budget band" value={`${inr(pkg.min_budget)}–${inr(pkg.max_budget)}`} />
-                <Stat label="Projected ROAS" value={`${(pkg.avg_roas_delivered * 0.85).toFixed(1)}x–${(pkg.avg_roas_delivered * 1.15).toFixed(1)}x`} sub={`${pct(pkg.historical_close_rate)} close rate`} />
+                {/* The band is the package's observed 25th-75th percentile
+                    delivery, not the average nudged by an arbitrary factor. */}
+                <Stat
+                  label="Projected ROAS"
+                  value={pkg.roas_p25 != null && pkg.roas_p75 != null
+                    ? `${pkg.roas_p25.toFixed(1)}x–${pkg.roas_p75.toFixed(1)}x`
+                    : `${(pkg.avg_roas_delivered || 0).toFixed(1)}x avg`}
+                  sub={`${pct(pkg.historical_close_rate)} close rate`}
+                />
               </div>
             </>
           ) : <p className="text-xs text-slate-500">No eligible package for this budget band.</p>}

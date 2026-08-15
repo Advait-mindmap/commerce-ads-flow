@@ -3,19 +3,6 @@ import { ResponsiveContainer, LineChart, Line, XAxis, YAxis, Tooltip, CartesianG
 import { Button } from '@/components/ui/button';
 import { pct } from '@/lib/format';
 
-function intervention(c) {
-  const top = (c.churn_drivers || []).slice().sort((a, b) => b.contribution - a.contribution)[0];
-  const driver = top ? top.driver : 'roas_decline';
-  const map = {
-    roas_decline: 'Run keyword pruning + bid rebalance, then share a recovery plan on a rep call.',
-    budget_underspend: 'Raise daily cap and expand match types to recover lost impression share.',
-    keyword_waste: 'Add negative keywords for the wasted spend cohort and reallocate to top converters.',
-    no_rep_contact: 'Book a check-in call within 48 hours with a performance review deck.',
-    pause_churn: 'Offer a managed-service trial for one cycle to stabilise campaign uptime.'
-  };
-  return map[driver] || `Address ${driver.replace(/_/g, ' ')} with a rep-led performance review.`;
-}
-
 export default function ChurnExpansion({ campaign, onAssign }) {
   const drivers = (campaign.churn_drivers || []).slice().sort((a, b) => b.contribution - a.contribution);
   const maxC = Math.max(...drivers.map((d) => d.contribution), 0.01);
@@ -56,7 +43,9 @@ export default function ChurnExpansion({ campaign, onAssign }) {
 
       <div>
         <div className="text-[11px] uppercase tracking-wide text-slate-500 font-medium mb-2">Recommended intervention</div>
-        <p className="text-[13px] text-slate-800">{intervention(campaign)}</p>
+        <p className="text-[13px] text-slate-800">
+          {campaign.recommended_intervention || 'No intervention recommended for this campaign.'}
+        </p>
         <Button size="sm" variant="outline" className="h-8 text-xs mt-3 bg-white" onClick={onAssign}>Assign to rep</Button>
       </div>
     </div>
