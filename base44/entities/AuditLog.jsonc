@@ -1,0 +1,46 @@
+{
+  "name": "AuditLog",
+  "type": "object",
+  "properties": {
+    "actor_type": {
+      "type": "string",
+      "enum": [
+        "agent",
+        "human_rep",
+        "system",
+        "admin"
+      ]
+    },
+    "actor_name": {
+      "type": "string"
+    },
+    "action": {
+      "type": "string"
+    },
+    "entity_type": {
+      "type": "string"
+    },
+    "entity_id": {
+      "type": "string"
+    },
+    "entity_name": {
+      "type": "string"
+    },
+    "summary": {
+      "type": "string"
+    },
+    "before_value": {
+      "type": "string"
+    },
+    "after_value": {
+      "type": "string"
+    },
+    "timestamp": {
+      "type": "string",
+      "format": "date-time"
+    }
+  },
+  "required": [
+    "timestamp"
+  ]
+}

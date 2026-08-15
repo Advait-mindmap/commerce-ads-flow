@@ -1,0 +1,153 @@
+{
+  "name": "Experiment",
+  "type": "object",
+  "properties": {
+    "experiment_key": {
+      "type": "string"
+    },
+    "name": {
+      "type": "string"
+    },
+    "hypothesis": {
+      "type": "string"
+    },
+    "unit_type": {
+      "type": "string",
+      "enum": [
+        "seller",
+        "lead",
+        "campaign",
+        "rep",
+        "session"
+      ]
+    },
+    "funnel_stage": {
+      "type": "string"
+    },
+    "status": {
+      "type": "string",
+      "enum": [
+        "draft",
+        "running",
+        "stopped_guardrail",
+        "concluded"
+      ]
+    },
+    "status_note": {
+      "type": "string"
+    },
+    "primary_metric": {
+      "type": "string"
+    },
+    "baseline_rate": {
+      "type": "number"
+    },
+    "mde_relative": {
+      "type": "number"
+    },
+    "required_n_per_arm": {
+      "type": "number"
+    },
+    "arms": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "variant": {
+            "type": "string"
+          },
+          "n": {
+            "type": "number"
+          },
+          "conversions": {
+            "type": "number"
+          },
+          "rate": {
+            "type": "number"
+          }
+        }
+      }
+    },
+    "relative_lift": {
+      "type": "number"
+    },
+    "absolute_lift": {
+      "type": "number"
+    },
+    "ci_low": {
+      "type": "number"
+    },
+    "ci_high": {
+      "type": "number"
+    },
+    "p_value_fixed": {
+      "type": "number"
+    },
+    "p_value_msprt": {
+      "type": "number"
+    },
+    "srm_p": {
+      "type": "number"
+    },
+    "srm_flagged": {
+      "type": "boolean"
+    },
+    "cuped_vr": {
+      "type": "number"
+    },
+    "power_achieved": {
+      "type": "number"
+    },
+    "significant": {
+      "type": "boolean"
+    },
+    "decision": {
+      "type": "string",
+      "enum": [
+        "ship_treatment",
+        "keep_control",
+        "continue",
+        "invalidated",
+        "pending"
+      ]
+    },
+    "guardrails": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "metric": {
+            "type": "string"
+          },
+          "control": {
+            "type": "number"
+          },
+          "treatment": {
+            "type": "number"
+          },
+          "breach": {
+            "type": "boolean"
+          },
+          "p_value": {
+            "type": "number"
+          }
+        }
+      }
+    },
+    "script_variant_content": {
+      "type": "string"
+    },
+    "started_at": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "ended_at": {
+      "type": "string",
+      "format": "date-time"
+    }
+  },
+  "required": [
+    "experiment_key",
+    "name"
+  ]
+}

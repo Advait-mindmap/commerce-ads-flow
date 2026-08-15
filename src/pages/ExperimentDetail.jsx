@@ -1,0 +1,70 @@
+import React, { useEffect, useState } from 'react';
+import { useParams } from 'react-router-dom';
+import { base44 } from '@/api/base44Client';
+import Breadcrumbs from '@/components/common/Breadcrumbs';
+import { PanelSkeleton } from '@/components/common/Skeletons';
+import ArmTable from '@/components/experiments/ArmTable';
+import LiftRangeBar from '@/components/experiments/LiftRangeBar';
+import StatsGrid from '@/components/experiments/StatsGrid';
+import GuardrailsTable from '@/components/experiments/GuardrailsTable';
+import DecisionLog from '@/components/experiments/DecisionLog';
+
+const AUTOSTOP_KEY = 'exp_sdr_script_v3_empathy_open';
+
+export default function ExperimentDetail() {
+  const { id } = useParams();
+  const [data, setData] = useState(null);
+
+  useEffect(() => {
+    (async () => {
+      const exp = await base44.entities.Experiment.get(id);
+      const logs = await base44.entities.AuditLog.filter({ entity_type: 'Experiment', entity_id: id }, '-timestamp', 50);
+      setData({ exp, logs });
+    })();
+  }, [id]);
+
+  if (!data) {
+    return (
+      <div className="p-6 space-y-4">
+        <PanelSkeleton height={72} />
+        <div className="grid grid-cols-1 xl:grid-cols-2 gap-4">
+          <PanelSkeleton height={320} />
+          <PanelSkeleton height={320} />
+        </div>
+        <PanelSkeleton height={200} />
+      </div>
+    );
+  }
+  const { exp, logs } = data;
+
+  return (
+    <div className="p-6 space-y-4">
+      <Breadcrumbs parent="Experiments" parentTo="/experiments" current={exp.name} />
+
+      {exp.experiment_key === AUTOSTOP_KEY && (
+        <div className="rounded-lg px-4 py-3 text-[13px] text-red-800" style={{ backgroundColor: '#FEF2F2', border: '1px solid #FECACA' }}>
+          Auto-stopped 12 Jul 2026 — guardrail breach on seller complaint rate, +31% vs control, p=0.03
+        </div>
+      )}
+
+      <div>
+        <h1 className="text-base font-semibold text-slate-900">{exp.name}</h1>
+        <p className="text-xs text-slate-500 mt-1">{exp.hypothesis}</p>
+        <div className="text-[11px] text-slate-500 mt-1.5 tabular-nums">
+          {exp.experiment_key} · {(exp.status || '').replace(/_/g, ' ')} · {exp.unit_type} unit · primary metric {(exp.primary_metric || '').replace(/_/g, ' ')} · required n {(exp.required_n_per_arm || 0).toLocaleString('en-IN')} per arm
+        </div>
+      </div>
+
+      <div className="grid grid-cols-1 xl:grid-cols-2 gap-4">
+        <div className="space-y-4">
+          <ArmTable arms={exp.arms} />
+          <LiftRangeBar low={exp.ci_low} high={exp.ci_high} point={exp.relative_lift} />
+        </div>
+        <StatsGrid exp={exp} />
+      </div>
+
+      <GuardrailsTable guardrails={exp.guardrails} />
+      <DecisionLog exp={exp} logs={logs} />
+    </div>
+  );
+}

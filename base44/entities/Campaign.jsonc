@@ -1,0 +1,170 @@
+{
+  "name": "Campaign",
+  "type": "object",
+  "properties": {
+    "opportunity_id": {
+      "type": "string"
+    },
+    "seller_id": {
+      "type": "string"
+    },
+    "seller_name": {
+      "type": "string"
+    },
+    "category": {
+      "type": "string"
+    },
+    "campaign_type": {
+      "type": "string",
+      "enum": [
+        "sponsored_product",
+        "sponsored_brand",
+        "display",
+        "search"
+      ]
+    },
+    "status": {
+      "type": "string",
+      "enum": [
+        "draft",
+        "live",
+        "paused",
+        "ended"
+      ]
+    },
+    "daily_budget": {
+      "type": "number"
+    },
+    "monthly_budget": {
+      "type": "number"
+    },
+    "spend_30d": {
+      "type": "number"
+    },
+    "impressions_30d": {
+      "type": "number"
+    },
+    "clicks_30d": {
+      "type": "number"
+    },
+    "conversions_30d": {
+      "type": "number"
+    },
+    "revenue_30d": {
+      "type": "number"
+    },
+    "roas_30d": {
+      "type": "number"
+    },
+    "roas_trend_slope": {
+      "type": "number"
+    },
+    "roas_vs_promised": {
+      "type": "number"
+    },
+    "budget_utilization": {
+      "type": "number"
+    },
+    "impression_share_lost_budget": {
+      "type": "number"
+    },
+    "keyword_waste_pct": {
+      "type": "number"
+    },
+    "pause_count_90d": {
+      "type": "number"
+    },
+    "days_active": {
+      "type": "number"
+    },
+    "days_since_rep_contact": {
+      "type": "number"
+    },
+    "churn_p30": {
+      "type": "number"
+    },
+    "churn_band": {
+      "type": "string",
+      "enum": [
+        "RED",
+        "AMBER",
+        "YELLOW",
+        "GREEN"
+      ]
+    },
+    "churn_drivers": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "driver": {
+            "type": "string"
+          },
+          "contribution": {
+            "type": "number"
+          }
+        }
+      }
+    },
+    "roas_series": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "week": {
+            "type": "string"
+          },
+          "roas": {
+            "type": "number"
+          },
+          "spend": {
+            "type": "number"
+          }
+        }
+      }
+    },
+    "optimization_actions": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "action_type": {
+            "type": "string"
+          },
+          "target": {
+            "type": "string"
+          },
+          "current_value": {
+            "type": "string"
+          },
+          "recommended_value": {
+            "type": "string"
+          },
+          "rationale": {
+            "type": "string"
+          },
+          "projected_impact": {
+            "type": "string"
+          },
+          "confidence": {
+            "type": "number"
+          },
+          "status": {
+            "type": "string"
+          }
+        }
+      }
+    },
+    "start_date": {
+      "type": "string",
+      "format": "date"
+    },
+    "end_date": {
+      "type": "string",
+      "format": "date"
+    }
+  },
+  "required": [
+    "seller_name"
+  ]
+}

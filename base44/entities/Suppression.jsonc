@@ -1,0 +1,44 @@
+{
+  "name": "Suppression",
+  "type": "object",
+  "properties": {
+    "seller_id": {
+      "type": "string"
+    },
+    "contact_id": {
+      "type": "string"
+    },
+    "seller_name": {
+      "type": "string"
+    },
+    "reason": {
+      "type": "string",
+      "enum": [
+        "dnd_registry",
+        "opted_out",
+        "frequency_cap",
+        "recent_contact",
+        "disqualified_recent",
+        "experiment_holdout",
+        "account_suspended"
+      ]
+    },
+    "channel": {
+      "type": "string",
+      "enum": [
+        "voice",
+        "whatsapp",
+        "email",
+        "all"
+      ]
+    },
+    "created_at": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "expires_at": {
+      "type": "string",
+      "format": "date-time"
+    }
+  }
+}
