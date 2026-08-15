@@ -11,6 +11,7 @@ import OpenEscalations from '@/components/sdr/OpenEscalations';
 import BatchDialModal from '@/components/sdr/BatchDialModal';
 import { inrFull } from '@/lib/format';
 import { dialSequentially } from '@/lib/dialer';
+import { useAuth } from '@/lib/AuthContext';
 
 const DAY = 86400000;
 const LIVE_VARIANT = 'v3_signal_open';
@@ -20,6 +21,8 @@ export default function SdrConsole() {
   const [leads, setLeads] = useState([]);
   const [modalOpen, setModalOpen] = useState(false);
   const { toast } = useToast();
+  const { hasCap } = useAuth();
+  const canDial = hasCap('dial');
 
   useEffect(() => {
     Promise.all([
@@ -79,7 +82,11 @@ export default function SdrConsole() {
         <span className="text-[11px] uppercase tracking-wide text-slate-500 border border-slate-200 bg-white rounded px-2 py-1">
           Live script · {LIVE_VARIANT}
         </span>
-        <Button size="sm" className="ml-auto h-8 text-xs" onClick={() => setModalOpen(true)}>Start batch dial</Button>
+        {canDial ? (
+          <Button size="sm" className="ml-auto h-8 text-xs" onClick={() => setModalOpen(true)}>Start batch dial</Button>
+        ) : (
+          <span className="ml-auto text-[11px] text-slate-500">Your role has view-only access to the calling floor</span>
+        )}
       </div>
 
       <SdrStatStrip stats={view.stats} />

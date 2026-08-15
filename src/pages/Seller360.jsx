@@ -15,6 +15,7 @@ import SignalsTab from '@/components/seller/SignalsTab';
 import ExperimentsTab from '@/components/seller/ExperimentsTab';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { dialOne } from '@/lib/dialer';
+import { useAuth } from '@/lib/AuthContext';
 
 const TABS = [
   ['overview', 'Overview'],
@@ -29,13 +30,17 @@ export default function Seller360() {
   const { id } = useParams();
   const navigate = useNavigate();
   const { toast } = useToast();
+  const { hasCap } = useAuth();
   const [data, setData] = useState(null);
   const [callNotice, setCallNotice] = useState(null);
 
   useEffect(() => {
     (async () => {
       const seller = await base44.entities.Seller.get(id);
-      const [campaigns, interactions, leads, experiments, models, peers] = await Promise.all([
+      // Roles reach this screen with different grants (SDR and Compliance cannot
+      // read Experiments or ModelVersions), so a denied slice degrades to an
+      // empty tab instead of hanging the whole profile on its skeleton.
+      const settled = await Promise.allSettled([
         base44.entities.Campaign.filter({ seller_id: id }),
         base44.entities.Interaction.filter({ seller_id: id }, '-started_at', 100),
         base44.entities.Lead.filter({ seller_id: id }),
@@ -43,6 +48,8 @@ export default function Seller360() {
         base44.entities.ModelVersion.filter({ model_key: 'pta' }),
         base44.entities.Seller.filter({ category: seller.category }, null, 200)
       ]);
+      const [campaigns, interactions, leads, experiments, models, peers] =
+        settled.map((s) => (s.status === 'fulfilled' ? s.value : []));
       const sovs = peers.map((p) => p.category_sov || 0).sort((a, b) => a - b);
       setData({
         seller,
@@ -107,6 +114,7 @@ export default function Seller360() {
         }}
         onCallNow={handleCallNow}
         callNotice={callNotice}
+        canDial={hasCap('dial')}
       />
       {callNotice && callNotice.kind === 'blocked' && (
         <Alert className="border-amber-200 bg-amber-50 text-amber-900">

@@ -9,6 +9,7 @@ import DispositionForm from '@/components/workspace/DispositionForm';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Button } from '@/components/ui/button';
 import { dialOne } from '@/lib/dialer';
+import { useAuth } from '@/lib/AuthContext';
 
 const OPEN_STAGES = ['mql', 'sql', 'opportunity'];
 const SLA_RANK = { breached: 0, at_risk: 1, on_track: 2, met: 3 };
@@ -24,6 +25,8 @@ export default function RepWorkspace() {
   const [callNotice, setCallNotice] = useState(null);
   const navigate = useNavigate();
   const { toast } = useToast();
+  const { hasCap } = useAuth();
+  const canDial = hasCap('dial');
 
   useEffect(() => {
     Promise.all([
@@ -121,7 +124,7 @@ export default function RepWorkspace() {
             <h1 className="text-base font-semibold text-slate-900">{selected.seller_name}</h1>
             <div className="flex items-center gap-2">
               {seller && <Link to={`/sellers/${seller.id}`} className="text-xs text-blue-800 hover:underline">Open Seller 360</Link>}
-              <Button size="sm" className="h-8 text-xs" onClick={handleCallNow}>Call now</Button>
+              {canDial && <Button size="sm" className="h-8 text-xs" onClick={handleCallNow}>Call now</Button>}
             </div>
           </div>
           {callNotice && callNotice.kind === 'blocked' && (

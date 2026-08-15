@@ -1,7 +1,7 @@
 import React from 'react';
 import { Button } from '@/components/ui/button';
 
-export default function OptimizationAction({ action, onDecide, busy }) {
+export default function OptimizationAction({ action, onDecide, busy, canDecide = true }) {
   const decided = action.status === 'approved' || action.status === 'rejected';
   return (
     <div className="border border-slate-200 bg-white rounded p-3">
@@ -24,11 +24,13 @@ export default function OptimizationAction({ action, onDecide, busy }) {
       <div className="flex items-center justify-end gap-1.5 mt-3">
         {decided ? (
           <span className={`text-[11px] capitalize ${action.status === 'approved' ? 'text-emerald-700' : 'text-slate-500'}`}>{action.status}</span>
-        ) : (
+        ) : canDecide ? (
           <>
             <Button size="sm" variant="outline" className="h-7 text-xs" disabled={busy} onClick={() => onDecide('rejected')}>Reject</Button>
             <Button size="sm" className="h-7 text-xs" disabled={busy} onClick={() => onDecide('approved')}>Approve</Button>
           </>
+        ) : (
+          <span className="text-[11px] text-slate-500">Awaiting approval</span>
         )}
       </div>
     </div>

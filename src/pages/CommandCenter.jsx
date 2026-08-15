@@ -19,13 +19,16 @@ export default function CommandCenter() {
 
   useEffect(() => {
     (async () => {
-      const [sellers, leads, opportunities, campaigns, runs] = await Promise.all([
+      // allSettled, not all: a role without read access to one slice should see
+      // that slice empty, not leave the whole dashboard stuck on skeletons.
+      const settled = await Promise.allSettled([
         base44.entities.Seller.list(null, 500),
         base44.entities.Lead.list(null, 500),
         base44.entities.Opportunity.list(null, 500),
         base44.entities.Campaign.list(null, 500),
         base44.entities.AgentRun.list('-started_at', 500)
       ]);
+      const [sellers, leads, opportunities, campaigns, runs] = settled.map((s) => (s.status === 'fulfilled' ? s.value : []));
       setData({ sellers, leads, opportunities, campaigns, runs });
     })();
   }, []);

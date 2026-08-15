@@ -6,6 +6,7 @@ import CampaignTable from '@/components/campaigns/CampaignTable';
 import ExportCsvButton from '@/components/common/ExportCsvButton';
 import { TableSkeleton } from '@/components/common/Skeletons';
 import { logAudit } from '@/lib/audit';
+import { useAuth } from '@/lib/AuthContext';
 
 const CSV_COLUMNS = [
   { key: 'seller_name', label: 'Seller' },
@@ -27,6 +28,8 @@ export default function Campaigns() {
   const [filters, setFilters] = useState({ status: [], bands: [], pendingOnly: false });
   const [busy, setBusy] = useState(false);
   const { toast } = useToast();
+  const { hasCap } = useAuth();
+  const canDecide = hasCap('approve_optimization');
 
   useEffect(() => {
     base44.entities.Campaign.list('-spend_30d', 500).then(setCampaigns);
@@ -77,7 +80,7 @@ export default function Campaigns() {
         <ExportCsvButton filename="campaigns" columns={CSV_COLUMNS} rows={rows} />
       </div>
       <FilterChips filters={filters} setFilters={setFilters} shown={rows.length} total={campaigns.length} />
-      <CampaignTable campaigns={rows} onDecide={decide} busy={busy} />
+      <CampaignTable campaigns={rows} onDecide={decide} busy={busy} canDecide={canDecide} />
     </div>
   );
 }

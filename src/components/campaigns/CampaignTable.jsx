@@ -7,7 +7,7 @@ import { inr, pct } from '@/lib/format';
 
 const HEADERS = ['', 'Seller', 'Type', 'Status', 'Monthly budget', 'Spend 30d', 'ROAS 30d', 'Conv 30d', 'Revenue 30d', 'Budget util', 'Churn band', 'Pending'];
 
-export default function CampaignTable({ campaigns, onDecide, busy }) {
+export default function CampaignTable({ campaigns, onDecide, busy, canDecide = true }) {
   const [expanded, setExpanded] = useState(null);
 
   return (
@@ -50,7 +50,7 @@ export default function CampaignTable({ campaigns, onDecide, busy }) {
                         <div className="text-[11px] uppercase tracking-wide text-slate-500 font-medium mb-2">Optimization recommendations</div>
                         <div className="grid grid-cols-1 lg:grid-cols-3 gap-3">
                           {actions.map((a, i) => (
-                            <OptimizationAction key={i} action={a} busy={busy} onDecide={(status) => onDecide(c, i, status)} />
+                            <OptimizationAction key={i} action={a} busy={busy} canDecide={canDecide} onDecide={(status) => onDecide(c, i, status)} />
                           ))}
                           {actions.length === 0 && <p className="text-xs text-slate-500">No recommendations for this campaign.</p>}
                         </div>

@@ -11,14 +11,18 @@ export default function ForgotPassword() {
   const [email, setEmail] = useState("");
   const [loading, setLoading] = useState(false);
   const [sent, setSent] = useState(false);
+  // No mail provider is wired up, so the server returns the reset link and we
+  // show it instead of pretending an email went out.
+  const [devResetUrl, setDevResetUrl] = useState(null);
 
   const handleSubmit = async (e) => {
     e.preventDefault();
     setLoading(true);
     try {
-      await base44.auth.resetPasswordRequest(email);
+      const res = await base44.auth.resetPasswordRequest(email);
+      setDevResetUrl(res?.dev_reset_url || null);
     } catch {
-      // Always show success regardless
+      // Always show success regardless — never reveal which addresses exist.
     } finally {
       setLoading(false);
       setSent(true);
@@ -37,9 +41,19 @@ export default function ForgotPassword() {
       }
     >
       {sent ? (
-        <p className="text-sm text-foreground text-center">
-          If an account exists with that email, you'll receive a password reset link shortly.
-        </p>
+        <div className="space-y-4">
+          <p className="text-sm text-foreground text-center">
+            If an account exists with that email, you'll receive a password reset link shortly.
+          </p>
+          {devResetUrl && (
+            <div className="p-3 rounded-lg border border-amber-300 bg-amber-50 text-amber-900 text-sm">
+              <div className="font-medium">No mail provider is configured on this deployment.</div>
+              <Link to={devResetUrl} className="text-primary font-medium hover:underline break-all">
+                Continue to reset your password
+              </Link>
+            </div>
+          )}
+        </div>
       ) : (
         <form onSubmit={handleSubmit} className="space-y-4">
           <div className="space-y-2">

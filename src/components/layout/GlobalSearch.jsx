@@ -21,11 +21,16 @@ export default function GlobalSearch() {
 
   useEffect(() => {
     if (!open || data) return;
-    Promise.all([
+    // Search spans three entities; a role denied one of them still gets the
+    // others rather than a dialog stuck on "Loading records…".
+    Promise.allSettled([
       base44.entities.Seller.list('-gmv_30d', 500),
       base44.entities.Lead.list('-created_date', 500),
       base44.entities.Campaign.list('-spend_30d', 500)
-    ]).then(([sellers, leads, campaigns]) => setData({ sellers, leads, campaigns }));
+    ]).then((settled) => {
+      const [sellers, leads, campaigns] = settled.map((s) => (s.status === 'fulfilled' ? s.value : []));
+      setData({ sellers, leads, campaigns });
+    });
   }, [open, data]);
 
   const go = (path) => {

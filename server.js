@@ -1,7 +1,15 @@
 import express from 'express';
+import fs from 'fs';
 import path from 'path';
+import cookieParser from 'cookie-parser';
 import { fileURLToPath } from 'url';
 import dotenv from 'dotenv';
+
+import { initSchema, pool } from './server/db.js';
+import { attachUser, router as authRouter } from './server/auth.js';
+import { router as entitiesRouter } from './server/entities.js';
+import { resumeInFlight, router as functionsRouter } from './server/functions.js';
+import { isSeeded, seedAll } from './server/seed.js';
 
 dotenv.config();
 
@@ -10,42 +18,95 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 const PORT = Number(process.env.PORT || 3000);
 
+// Railway terminates TLS upstream; without this, secure cookies are dropped.
+app.set('trust proxy', 1);
+
 app.use(express.json({ limit: '2mb' }));
+app.use(cookieParser());
 
-const ok = (res, data = {}) => res.json({ ok: true, ...data });
-const fail = (res, message, status = 400) => res.status(status).json({ ok: false, error: message });
+let dbReady = false;
+let seedSummary = null;
+let bootError = null;
 
-app.get('/api/health', (_req, res) => ok(res, { status: 'ok' }));
+app.get('/api/health', async (_req, res) => {
+  const body = {
+    ok: dbReady,
+    status: dbReady ? 'ok' : 'degraded',
+    database: dbReady ? 'connected' : 'unavailable',
+    seeded: Boolean(seedSummary && !seedSummary.skipped) || (seedSummary?.skipped ?? false),
+    uptime_sec: Math.round(process.uptime())
+  };
+  if (bootError) body.error = bootError;
+  // A health check that only ever says "ok" is not a health check. Report the
+  // database honestly and fail the status code when it is down.
+  return res.status(dbReady ? 200 : 503).json(body);
+});
 
-app.get('/api/auth/me', (_req, res) => ok(res, { user: { id: 'demo-admin', email: 'admin@example.com' } }));
-app.post('/api/auth/logout', (_req, res) => ok(res, { loggedOut: true }));
+app.use(attachUser);
+app.use('/api/auth', authRouter);
+app.use('/api/functions', functionsRouter);
 
-app.get('/api/:entity', (req, res) => ok(res, { entity: req.params.entity, rows: [] }));
-app.get('/api/:entity/:id', (req, res) => ok(res, { entity: req.params.entity, id: req.params.id, data: {} }));
-app.post('/api/:entity/query', (req, res) => ok(res, { entity: req.params.entity, rows: [] }));
-app.post('/api/:entity', (req, res) => ok(res, { entity: req.params.entity, data: req.body || {} }));
-app.patch('/api/:entity/:id', (req, res) => ok(res, { entity: req.params.entity, id: req.params.id, data: req.body || {} }));
-app.post('/api/:entity/bulk', (req, res) => ok(res, { entity: req.params.entity, count: Array.isArray(req.body) ? req.body.length : 0 }));
+// Entity CRUD is mounted last under /api so it cannot shadow auth or functions.
+app.use('/api', entitiesRouter);
 
-app.post('/api/functions/:name', (req, res) => {
-  const { name } = req.params;
-  if (!name) return fail(res, 'Function name required', 400);
-  return ok(res, { function: name, body: req.body || {}, result: { ok: true } });
+app.use('/api', (_req, res) => res.status(404).json({ ok: false, error: 'No such API route' }));
+
+// eslint-disable-next-line no-unused-vars -- Express needs the 4-arg signature.
+app.use('/api', (err, _req, res, _next) => {
+  console.error('[api]', err);
+  res.status(500).json({ ok: false, error: err.message || 'Internal server error' });
 });
 
 const distPath = path.join(__dirname, 'dist');
-const hasDist = path.existsSync ? path.existsSync(distPath) : false;
+const hasDist = fs.existsSync(path.join(distPath, 'index.html'));
 
 if (hasDist) {
   app.use(express.static(distPath));
   app.get('*', (req, res, next) => {
     if (req.path.startsWith('/api/')) return next();
-    res.sendFile(path.join(distPath, 'index.html'));
+    return res.sendFile(path.join(distPath, 'index.html'));
   });
 } else {
   app.get('*', (_req, res) => res.status(503).json({ ok: false, error: 'Frontend build not generated yet.' }));
 }
 
-app.listen(PORT, () => {
+async function boot() {
+  if (!process.env.DATABASE_URL) {
+    bootError = 'DATABASE_URL is not set — the API cannot serve data.';
+    console.error(`[boot] ${bootError}`);
+    return;
+  }
+  try {
+    await initSchema();
+    dbReady = true;
+    console.log('[boot] schema ready');
+
+    if (process.env.SEED_ON_BOOT === 'false') {
+      console.log('[boot] seeding disabled (SEED_ON_BOOT=false)');
+    } else {
+      const already = await isSeeded();
+      seedSummary = await seedAll({ force: process.env.SEED_FORCE === 'true' });
+      console.log(already && seedSummary.skipped
+        ? '[boot] demo data already present — demo accounts verified'
+        : `[boot] seeded ${JSON.stringify(seedSummary.counts)}`);
+    }
+
+    await resumeInFlight();
+  } catch (err) {
+    bootError = err.message;
+    console.error('[boot] failed', err);
+  }
+}
+
+app.listen(PORT, async () => {
   console.log(`CommerceAds API listening on port ${PORT}`);
+  await boot();
 });
+
+const shutdown = async (signal) => {
+  console.log(`[shutdown] ${signal}`);
+  try { await pool.end(); } catch { /* already closing */ }
+  process.exit(0);
+};
+process.on('SIGTERM', () => shutdown('SIGTERM'));
+process.on('SIGINT', () => shutdown('SIGINT'));

@@ -1,12 +1,11 @@
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import { base44 } from "@/api/base44Client";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { LogIn, Mail, Lock, Loader2 } from "lucide-react";
+import { LogIn, Mail, Lock, Loader2, ShieldCheck } from "lucide-react";
 import AuthLayout from "@/components/AuthLayout";
-import GoogleIcon from "@/components/GoogleIcon";
 import { safeReturnTo } from "@/lib/authReturnTo";
 
 export default function Login() {
@@ -14,9 +13,16 @@ export default function Login() {
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
+  const [demo, setDemo] = useState(null);
+  const [demoBusy, setDemoBusy] = useState(null);
+
   // Post-login destination (e.g. the MCP OAuth consent page sends users here
   // with returnTo so the grant flow can resume). Same-origin paths only.
   const returnTo = safeReturnTo();
+
+  useEffect(() => {
+    base44.auth.demoUsers().then(setDemo).catch(() => setDemo({ enabled: false, users: [] }));
+  }, []);
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -32,15 +38,25 @@ export default function Login() {
     }
   };
 
-  const handleGoogle = () => {
-    base44.auth.loginWithProvider("google", returnTo);
+  // One click per role: the server resolves the seeded demo account for that
+  // role and issues the session, so no credentials are typed or stored here.
+  const handleDemo = async (role) => {
+    setError("");
+    setDemoBusy(role);
+    try {
+      await base44.auth.demoLogin(role);
+      window.location.href = returnTo;
+    } catch (err) {
+      setError(err.message || "Could not start the demo session");
+      setDemoBusy(null);
+    }
   };
 
   return (
     <AuthLayout
       icon={LogIn}
-      title="Welcome back"
-      subtitle="Log in to your account"
+      title="CommerceAds OS"
+      subtitle="Sign in to the ad sales workspace"
       footer={
         <>
           Don't have an account?{" "}
@@ -53,28 +69,55 @@ export default function Login() {
         </>
       }
     >
-      <Button
-        variant="outline"
-        className="w-full h-12 text-sm font-medium mb-6"
-        onClick={handleGoogle}
-      >
-        <GoogleIcon className="w-5 h-5 mr-2" />
-        Continue with Google
-      </Button>
+      {demo?.enabled && demo.users?.length > 0 && (
+        <div className="mb-6">
+          <div className="flex items-center gap-2 mb-2">
+            <ShieldCheck className="w-3.5 h-3.5 text-muted-foreground" aria-hidden="true" />
+            <span className="text-[11px] uppercase tracking-wide text-muted-foreground font-medium">
+              Sign in as a demo role
+            </span>
+          </div>
+          <div className="grid grid-cols-1 gap-1.5">
+            {demo.users.map((u) => (
+              <button
+                key={u.role}
+                type="button"
+                onClick={() => handleDemo(u.role)}
+                disabled={Boolean(demoBusy)}
+                className="text-left border border-border rounded-lg px-3 py-2 hover:border-primary/50 hover:bg-accent/40 disabled:opacity-50 transition-colors"
+              >
+                <div className="flex items-center justify-between gap-2">
+                  <span className="text-[13px] font-medium text-foreground">{u.label}</span>
+                  {demoBusy === u.role ? (
+                    <Loader2 className="w-3.5 h-3.5 animate-spin text-muted-foreground shrink-0" />
+                  ) : (
+                    <span className="text-[11px] text-muted-foreground shrink-0">{u.full_name}</span>
+                  )}
+                </div>
+                <p className="text-[11px] text-muted-foreground mt-0.5 leading-snug">{u.blurb}</p>
+              </button>
+            ))}
+          </div>
+          <p className="text-[11px] text-muted-foreground mt-2">
+            Every demo account uses the password <span className="font-mono">{demo.password}</span> if you prefer to
+            sign in manually.
+          </p>
+        </div>
+      )}
 
-      <div className="relative mb-6">
-        <div className="absolute inset-0 flex items-center">
-          <div className="w-full border-t border-border" />
+      {demo?.enabled && demo.users?.length > 0 && (
+        <div className="relative mb-6">
+          <div className="absolute inset-0 flex items-center">
+            <div className="w-full border-t border-border" />
+          </div>
+          <div className="relative flex justify-center text-xs uppercase">
+            <span className="bg-card px-3 text-muted-foreground">or sign in</span>
+          </div>
         </div>
-        <div className="relative flex justify-center text-xs uppercase">
-          <span className="bg-card px-3 text-muted-foreground">or</span>
-        </div>
-      </div>
+      )}
 
       {error && (
-        <div className="mb-4 p-3 rounded-lg bg-destructive/10 text-destructive text-sm">
-          {error}
-        </div>
+        <div className="mb-4 p-3 rounded-lg bg-destructive/10 text-destructive text-sm">{error}</div>
       )}
 
       <form onSubmit={handleSubmit} className="space-y-4">
@@ -86,7 +129,6 @@ export default function Login() {
               id="email"
               type="email"
               autoComplete="email"
-              autoFocus
               placeholder="you@example.com"
               value={email}
               onChange={(e) => setEmail(e.target.value)}

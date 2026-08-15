@@ -1,5 +1,5 @@
 import React from 'react';
-import { ResponsiveContainer, ScatterChart, Scatter, XAxis, YAxis, Tooltip, CartesianGrid, Line, ComposedChart } from 'recharts';
+import { ResponsiveContainer, Scatter, XAxis, YAxis, Tooltip, CartesianGrid, Line, ComposedChart } from 'recharts';
 import Panel from '@/components/common/Panel';
 
 export default function CalibrationChart({ curve }) {

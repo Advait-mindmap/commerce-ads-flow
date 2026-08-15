@@ -8,7 +8,7 @@ import UserNotRegisteredError from '@/components/UserNotRegisteredError';
 import ScrollToTop from './components/ScrollToTop';
 // Add page imports here
 import { Navigate } from 'react-router-dom';
-import ProtectedRoute from '@/components/ProtectedRoute';
+import ProtectedRoute, { RoleRoute } from '@/components/ProtectedRoute';
 import Login from '@/pages/Login';
 import Register from '@/pages/Register';
 import ForgotPassword from '@/pages/ForgotPassword';
@@ -33,10 +33,11 @@ import Sellers from '@/pages/Sellers';
 import Compliance from '@/pages/Compliance';
 
 const AuthenticatedApp = () => {
-  const { isLoadingAuth, isLoadingPublicSettings, authError, navigateToLogin } = useAuth();
+  const { isLoadingAuth, authChecked, authError } = useAuth();
 
-  // Show loading spinner while checking app public settings or auth
-  if (isLoadingPublicSettings || isLoadingAuth) {
+  // Wait for the session check before deciding what to render, otherwise a
+  // signed-in user flashes the login screen on every reload.
+  if (isLoadingAuth || !authChecked) {
     return (
       <div className="fixed inset-0 flex items-center justify-center">
         <div className="w-8 h-8 border-4 border-slate-200 border-t-slate-800 rounded-full animate-spin"></div>
@@ -44,18 +45,10 @@ const AuthenticatedApp = () => {
     );
   }
 
-  // Handle authentication errors
-  if (authError) {
-    if (authError.type === 'user_not_registered') {
-      return <UserNotRegisteredError />;
-    } else if (authError.type === 'auth_required') {
-      // Redirect to login automatically
-      navigateToLogin();
-      return null;
-    }
+  if (authError && authError.type === 'user_not_registered') {
+    return <UserNotRegisteredError />;
   }
 
-  // Render the main app
   return (
     <Routes>
       <Route path="/login" element={<Login />} />
@@ -64,6 +57,8 @@ const AuthenticatedApp = () => {
       <Route path="/reset-password" element={<ResetPassword />} />
       <Route element={<ProtectedRoute unauthenticatedElement={<Navigate to="/login" replace />} />}>
         <Route element={<AppLayout />}>
+          {/* Every in-app screen also passes the role gate. */}
+          <Route element={<RoleRoute />}>
           <Route path="/" element={<CommandCenter />} />
           <Route path="/signals" element={<SignalExplorer />} />
           <Route path="/mql" element={<MqlInbox />} />
@@ -80,6 +75,7 @@ const AuthenticatedApp = () => {
           <Route path="/models/:key" element={<ModelDetail />} />
           <Route path="/sellers" element={<Sellers />} />
           <Route path="/compliance" element={<Compliance />} />
+          </Route>
         </Route>
       </Route>
       <Route path="*" element={<PageNotFound />} />
