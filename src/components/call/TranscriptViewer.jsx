@@ -49,7 +49,7 @@ export default function TranscriptViewer({
     <Panel
       title="Transcript"
       action={
-        <div className="flex items-center gap-1.5">
+        <div className="flex flex-wrap items-center justify-end gap-1.5">
           <Button size="sm" variant="outline" className="h-7 text-xs" onClick={onTogglePlay}>
             {playing ? <Pause className="w-3.5 h-3.5 mr-1" /> : <Play className="w-3.5 h-3.5 mr-1" />}
             {playing ? 'Pause' : 'Replay call'}

@@ -339,10 +339,50 @@ const PLATFORM_PATTERNS = [
   { label: 'Marketplace Ads', re: /marketplace ads/i }
 ];
 
+/*
+ * Short answers only mean something next to the question that produced them.
+ * "yeah, i have" is a confirmation of pain when it follows "have you noticed
+ * orders slowing down", and nothing at all on its own — scanning the seller's
+ * words in isolation misses most real replies, because people answer briefly.
+ */
+const AFFIRMATIVE = /^\s*(yes|yeah|yep|yup|ya|haan|haa|ji|sure|correct|right|true|absolutely|of course|definitely|i have|we have|we did|i do|we do)\b/i;
+const NEGATIVE = /^\s*(no|nope|nah|nahi|not really|never|none|we don'?t|i don'?t|nothing)\b/i;
+
+const QUESTION_TOPICS = [
+  { topic: 'pain', re: /(orders?|sales?|business).{0,30}(slow|drop|down|fall|less)|noticed.{0,30}(slow|drop|down)/i },
+  { topic: 'decision_maker', re: /(who|are you).{0,40}(decide|decides|decision).{0,20}(spend|marketing|budget)?|person who decides/i },
+  { topic: 'advertising', re: /(paid promotion|running any ads|advertising anywhere|currently advertising|any ads)/i },
+  { topic: 'budget', re: /(budget|spend).{0,40}(comfortable|testing|month)/i },
+  { topic: 'timeline', re: /(when would you|when do you|look to start|timeline)/i }
+];
+
+/** Pairs each seller reply with the question that preceded it. */
+function answeredTopics(turns) {
+  const found = {};
+  turns.forEach((turn, i) => {
+    if (turn.role !== 'user') return;
+    // Nearest preceding agent turn is the question being answered.
+    let ask = null;
+    for (let j = i - 1; j >= 0; j -= 1) {
+      if (turns[j].role !== 'user') { ask = turns[j].content || ''; break; }
+    }
+    if (!ask) return;
+    const match = QUESTION_TOPICS.find((t) => t.re.test(ask));
+    if (!match) return;
+
+    const reply = String(turn.content || '');
+    const value = AFFIRMATIVE.test(reply) ? true : NEGATIVE.test(reply) ? false : null;
+    // First clear answer wins; a later restatement should not overwrite it.
+    if (found[match.topic] === undefined) found[match.topic] = { value, reply };
+  });
+  return found;
+}
+
 export function extractFromTranscript(turns = []) {
   const sellerTurns = turns.filter((t) => t.role === 'user');
   const sellerText = sellerTurns.map((t) => t.content).join(' ');
   const allText = turns.map((t) => t.content).join(' ');
+  const answered = answeredTopics(turns);
 
   if (!sellerTurns.length) {
     return {
@@ -364,11 +404,18 @@ export function extractFromTranscript(turns = []) {
     };
   }
 
-  const isDecisionMaker = /(i handle|i manage|i decide|myself|i take.*decision)/i.test(sellerText)
+  // A direct answer to the question beats a keyword sweep of the whole call.
+  const statedDecisionMaker = /(i handle|i manage|i decide|myself|i take.*decision)/i.test(sellerText)
     && !/(brother|owner|sir|boss).{0,40}(handles|decides|takes)/i.test(sellerText);
+  const isDecisionMaker = answered.decision_maker?.value ?? statedDecisionMaker;
   const decisionMakerName = isDecisionMaker ? null : (/(brother|partner|owner)/i.exec(sellerText)?.[1] || null);
 
-  const currently_advertising = PLATFORM_PATTERNS.filter((p) => p.re.test(sellerText)).map((p) => p.label);
+  // Named platforms win; an explicit "no" to the question means none, rather
+  // than an empty list that could equally mean the question was never asked.
+  const namedPlatforms = PLATFORM_PATTERNS.filter((p) => p.re.test(sellerText)).map((p) => p.label);
+  const currently_advertising = namedPlatforms.length
+    ? namedPlatforms
+    : (answered.advertising?.value === false ? [] : namedPlatforms);
 
   const budgetMatch = /(₹[\d,.]+\s*[KLCr]*(?:\s*[–-]\s*₹?[\d,.]+\s*[KLCr]*)?)/i.exec(sellerText);
   const budget_band_stated = budgetMatch ? `${budgetMatch[1]} per month` : null;
@@ -378,7 +425,8 @@ export function extractFromTranscript(turns = []) {
   else if (/next month/i.test(sellerText)) timeline = 'next_month';
   else if (/quarter/i.test(sellerText)) timeline = 'this_quarter';
 
-  const pain_confirmed = /(orders have dropped|dropped quite a lot|not showing up|business is down|sales are down|drop)/i.test(sellerText);
+  const statedPain = /(orders have dropped|dropped quite a lot|not showing up|business is down|sales are down|drop)/i.test(sellerText);
+  const pain_confirmed = answered.pain?.value ?? statedPain;
 
   const objections = OBJECTION_PATTERNS
     .filter((p) => p.re.test(sellerText))
@@ -439,7 +487,16 @@ export function extractFromTranscript(turns = []) {
       timeline,
       pain_confirmed,
       qualified,
-      confidence: Number((0.55 + (isDecisionMaker ? 0.14 : 0) + (budget_band_stated ? 0.14 : 0) + (pain_confirmed ? 0.1 : 0)).toFixed(2)),
+      // Reflects how many of the five facts the call actually established, so
+      // a barely-answered call does not read as confidently qualified.
+      confidence: Number((
+        0.4
+        + (answered.decision_maker !== undefined || statedDecisionMaker ? 0.14 : 0)
+        + (budget_band_stated ? 0.14 : 0)
+        + (answered.pain !== undefined || statedPain ? 0.12 : 0)
+        + (timeline !== 'no_timeline' ? 0.1 : 0)
+        + (answered.advertising !== undefined || namedPlatforms.length ? 0.1 : 0)
+      ).toFixed(2)),
       pain_description: pain_confirmed
         ? 'Seller confirmed a drop in orders consistent with the organic impression decline on their account.'
         : 'Seller did not confirm commercial pain on this call.',

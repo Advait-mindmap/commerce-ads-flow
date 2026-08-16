@@ -357,7 +357,9 @@ function callContext({ lead, seller, contact, scriptVariant }) {
   return {
     // Whose team the agent says it is calling from. Configurable because the
     // agent should name the actual marketplace, not a generic phrase.
-    marketplace_name: process.env.MARKETPLACE_NAME || 'the marketplace',
+    // No leading article — the script supplies it, so a default of
+    // "the marketplace" would have the agent say "the the marketplace".
+    marketplace_name: process.env.MARKETPLACE_NAME || 'marketplace',
     seller_name: (lead && lead.seller_name) || (seller && seller.display_name) || 'there',
     contact_name: (contact && contact.full_name) || '',
     category: (lead && lead.category) || (seller && seller.category) || '',
