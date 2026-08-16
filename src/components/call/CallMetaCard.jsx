@@ -1,5 +1,5 @@
 import React from 'react';
-import { ShieldCheck, ShieldAlert } from 'lucide-react';
+import { ShieldCheck, ShieldAlert, Radio, FlaskConical } from 'lucide-react';
 import Panel from '@/components/common/Panel';
 import PtaBadge from '@/components/common/PtaBadge';
 import OutcomeBadge from '@/components/common/OutcomeBadge';
@@ -31,6 +31,18 @@ export default function CallMetaCard({ run, seller, contact }) {
           {seller && <PtaBadge band={seller.pta_band} score={seller.pta_score} />}
         </div>
       </div>
+      {/* A live call carries a provider id; a demo one never does. */}
+      <Row label="Source">
+        {run.provider_call_id ? (
+          <span className="inline-flex items-center gap-1 text-emerald-700 text-xs">
+            <Radio className="w-3.5 h-3.5" /> Live call
+          </span>
+        ) : (
+          <span className="inline-flex items-center gap-1 text-slate-500 text-xs">
+            <FlaskConical className="w-3.5 h-3.5" /> Demo data
+          </span>
+        )}
+      </Row>
       <Row label="Contact">{contact ? `${contact.full_name} · ${contact.role}` : '—'}</Row>
       <Row label="Phone">{run.contact_phone || (contact && contact.phone) || '—'}</Row>
       <Row label="Agent">{run.agent_name || '—'}</Row>

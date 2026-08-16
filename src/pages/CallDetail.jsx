@@ -158,6 +158,7 @@ export default function CallDetail() {
           <TranscriptViewer
             turns={turns}
             guardrails={run.guardrail_events}
+            isLive={Boolean(run.provider_call_id)}
             visibleCount={visibleCount}
             playing={playing}
             speed={speed}

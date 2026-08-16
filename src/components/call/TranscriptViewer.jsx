@@ -41,9 +41,13 @@ function Turn({ turn }) {
 
 export default function TranscriptViewer({
   turns, guardrails, visibleCount, playing, speed,
-  onTogglePlay, onSpeedToggle, onSkipEnd, onFetchLatest, onExtract, busy
+  onTogglePlay, onSpeedToggle, onSkipEnd, onFetchLatest, onExtract, busy, isLive
 }) {
   const shown = turns.slice(0, visibleCount);
+  // Pulling and re-reading only mean something for a call that was placed
+  // through the provider. Offering them on demo data invites the conclusion
+  // that the integration is broken when nothing was ever dialled.
+  const canPull = isLive !== false;
 
   return (
     <Panel
@@ -56,10 +60,12 @@ export default function TranscriptViewer({
           </Button>
           <Button size="sm" variant="outline" className="h-7 text-xs tabular-nums" onClick={onSpeedToggle}>{speed}x</Button>
           <Button size="sm" variant="outline" className="h-7 text-xs" onClick={onSkipEnd}><SkipForward className="w-3.5 h-3.5" /></Button>
-          <Button size="sm" variant="outline" className="h-7 text-xs" onClick={onFetchLatest} disabled={busy}>
-            <Download className="w-3.5 h-3.5 mr-1" /> Pull latest
-          </Button>
-          <Button size="sm" className="h-7 text-xs" onClick={onExtract} disabled={busy}>
+          {canPull && (
+            <Button size="sm" variant="outline" className="h-7 text-xs" onClick={onFetchLatest} disabled={busy}>
+              <Download className="w-3.5 h-3.5 mr-1" /> Pull latest
+            </Button>
+          )}
+          <Button size="sm" className="h-7 text-xs" onClick={onExtract} disabled={busy || turns.length === 0}>
             <Sparkles className="w-3.5 h-3.5 mr-1" /> Extract qualification
           </Button>
         </div>
@@ -80,7 +86,14 @@ export default function TranscriptViewer({
           </React.Fragment>
         );
       })}
-      {turns.length === 0 && <p className="text-xs text-slate-500">No transcript on this call yet — pull the latest from the voice service.</p>}
+      {/* Say which of the two reasons there is nothing to show. */}
+      {turns.length === 0 && (
+        <p className="text-xs text-slate-500">
+          {canPull
+            ? 'No transcript on this call yet — pull the latest from the voice service.'
+            : 'This is demo data, not a placed call, so there is no transcript to fetch. Calls marked "live" on the console carry the real conversation.'}
+        </p>
+      )}
     </Panel>
   );
 }

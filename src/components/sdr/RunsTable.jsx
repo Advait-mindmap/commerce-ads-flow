@@ -56,6 +56,15 @@ export default function RunsTable({ runs, leadsById = {} }) {
                 </td>
                 {/* Opens everything known about this seller's outreach. */}
                 <td className="px-3 py-2 text-[13px] font-medium max-w-[180px] truncate">
+                  {/* Marks the handful of calls that actually rang a phone. */}
+                  {r.provider_call_id && (
+                    <span
+                      className="inline-block mr-1.5 align-middle text-[9px] uppercase tracking-wide text-emerald-700 border border-emerald-200 bg-emerald-50 rounded px-1 py-px"
+                      title="Placed through the voice provider"
+                    >
+                      live
+                    </span>
+                  )}
                   {r.seller_id ? (
                     <Link
                       to={`/sdr/sellers/${r.seller_id}`}
