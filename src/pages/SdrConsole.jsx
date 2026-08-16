@@ -164,7 +164,17 @@ export default function SdrConsole() {
             <Button size="sm" variant="outline" className="h-8 text-xs bg-white" onClick={() => setDialOpen(true)}>
               <Phone className="w-3.5 h-3.5 mr-1.5" /> Start dial
             </Button>
-            <Button size="sm" className="h-8 text-xs" onClick={() => setModalOpen(true)}>Start batch dial</Button>
+            <Button
+              size="sm"
+              className="h-8 text-xs"
+              onClick={() => toast({
+                title: 'Batch dial is not allowed',
+                description: 'Live dialling is on, so a batch would ring every seeded seller number for real. Use Start dial with a number you control.',
+                variant: 'destructive'
+              })}
+            >
+              Start batch dial
+            </Button>
           </div>
         ) : (
           <span className="ml-auto text-[11px] text-slate-500">Your role has view-only access to the calling floor</span>
