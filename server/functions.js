@@ -210,6 +210,10 @@ async function completeRun(runId) {
   try {
     const run = await getRow('AgentRun', runId);
     if (!run || run.status !== 'in_progress') return;
+    // A provider-backed call is settled by the poller from what was actually
+    // said. Running the simulator over it would fabricate a transcript on top
+    // of a real conversation.
+    if (run.provider_call_id) return;
 
     const seller = run.seller_id ? await getRow('Seller', run.seller_id) : null;
     const lead = run.lead_id ? await getRow('Lead', run.lead_id) : null;
@@ -318,11 +322,17 @@ const scheduleCompletion = (runId, delay = CALL_DURATION_MS) => {
   setTimeout(() => { completeRun(runId); }, delay).unref?.();
 };
 
-/** Finishes calls left in_progress by a restart (and the two seeded live ones). */
+/**
+ * Finishes simulated calls left in_progress by a restart. Provider-backed runs
+ * are excluded — those are settled by the poller from real provider data.
+ */
 export async function resumeInFlight() {
   try {
     const { rows } = await q(
-      `SELECT * FROM ${table('AgentRun')} WHERE data->>'status' = 'in_progress' LIMIT 50`
+      `SELECT * FROM ${table('AgentRun')}
+       WHERE data->>'status' = 'in_progress'
+         AND data->>'provider_call_id' IS NULL
+       LIMIT 50`
     );
     rows.map(rowToObject).forEach((run, i) => {
       const elapsed = run.started_at ? Date.now() - new Date(run.started_at).getTime() : Infinity;

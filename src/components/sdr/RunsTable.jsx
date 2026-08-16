@@ -37,7 +37,8 @@ export default function RunsTable({ runs, leadsById = {} }) {
         </thead>
         <tbody>
           {runs.map((r) => {
-            const live = r.status === 'in_progress';
+            // A queued call is placed but not yet answered; it is pending, not blank.
+            const live = r.status === 'in_progress' || r.status === 'queued';
             const escalated = r.outcome === 'escalated' || (r.escalation && r.escalation.triggered);
             const liveDuration = live && r.started_at
               ? Math.max(0, Math.round((Date.now() - new Date(r.started_at).getTime()) / 1000))
@@ -63,7 +64,11 @@ export default function RunsTable({ runs, leadsById = {} }) {
                 </td>
                 <td className="px-3 py-2 text-xs text-slate-600">{(r.channel || '').replace(/_/g, ' ')}</td>
                 <td className="px-3 py-2 text-[13px] text-slate-700 font-mono tabular-nums">{mmss(liveDuration)}</td>
-                <td className="px-3 py-2">{live ? <span className="text-[11px] text-slate-500">in progress</span> : <OutcomeBadge outcome={r.outcome} />}</td>
+                <td className="px-3 py-2">
+                  {live
+                    ? <span className="text-[11px] text-slate-500">{r.status === 'queued' ? 'connecting…' : 'in progress'}</span>
+                    : <OutcomeBadge outcome={r.outcome} />}
+                </td>
                 {/* Meetings booked off this call, so the floor can see outcomes
                     without opening each record. */}
                 <td className="px-3 py-2 text-[11px] whitespace-nowrap">

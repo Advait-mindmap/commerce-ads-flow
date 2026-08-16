@@ -11,6 +11,7 @@ import { attachUser, router as authRouter } from './server/auth.js';
 import { router as entitiesRouter } from './server/entities.js';
 import { refreshExperiments, resumeInFlight, router as functionsRouter } from './server/functions.js';
 import { router as webhooksRouter } from './server/webhooks.js';
+import { pollLiveCalls } from './server/poll.js';
 import { isSeeded, seedAll } from './server/seed.js';
 
 dotenv.config();
@@ -105,6 +106,20 @@ async function boot() {
     }
 
     await resumeInFlight();
+
+    // Real calls have nothing pushing their result back, so they are polled
+    // until they settle. Every twenty seconds keeps the console current
+    // without hammering the provider.
+    const poll = async () => {
+      try {
+        const n = await pollLiveCalls();
+        if (n) console.log(`[scheduler] settled ${n} live call(s)`);
+      } catch (err) {
+        console.error('[scheduler] live call poll failed', err.message);
+      }
+    };
+    await poll();
+    setInterval(poll, 20 * 1000).unref?.();
 
     // Experiment arms are a read of the funnel, so they are recomputed on a
     // timer rather than written once at seed time.
