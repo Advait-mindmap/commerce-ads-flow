@@ -26,7 +26,6 @@ export default function CallDetail() {
   const [visibleCount, setVisibleCount] = useState(0);
   const [playing, setPlaying] = useState(false);
   const [speed, setSpeed] = useState(1);
-  const [now, setNow] = useState(Date.now());
   const timerRef = useRef(null);
 
   const load = async () => {
@@ -50,12 +49,6 @@ export default function CallDetail() {
 
   useEffect(() => {
     if (!run || !['queued', 'in_progress'].includes(run.status)) return undefined;
-    const idTimer = setInterval(() => setNow(Date.now()), 1000);
-    return () => clearInterval(idTimer);
-  }, [run, run?.status]);
-
-  useEffect(() => {
-    if (!run || !['queued', 'in_progress'].includes(run.status)) return undefined;
     const started = new Date(run.started_at || Date.now()).getTime();
     const deadline = started + 10 * 60 * 1000;
     const poller = setInterval(async () => {
@@ -71,9 +64,6 @@ export default function CallDetail() {
   }, [id, run?.status]);
 
   const turns = (run && run.transcript) || [];
-  const liveDurationSec = run && ['queued', 'in_progress'].includes(run.status) && run.started_at
-    ? Math.max(0, Math.round((now - new Date(run.started_at).getTime()) / 1000))
-    : (run && run.duration_sec) || 0;
 
   useEffect(() => {
     clearInterval(timerRef.current);
@@ -156,7 +146,7 @@ export default function CallDetail() {
 
       <div className="grid grid-cols-1 lg:grid-cols-4 gap-4 items-start">
         <div className="space-y-4">
-          <CallMetaCard run={{ ...run, duration_sec: liveDurationSec }} seller={seller} contact={contact} />
+          <CallMetaCard run={run} seller={seller} contact={contact} />
           <WhyWeCalled reasons={(seller && seller.pta_reasons) || (lead && lead.pta_reasons)} />
         </div>
 

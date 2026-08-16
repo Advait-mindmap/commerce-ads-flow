@@ -57,7 +57,10 @@ export default function CallMetaCard({ run, seller, contact }) {
       <Row label="Agent">{run.agent_name || '—'}</Row>
       <Row label="Script">{run.script_variant || '—'}</Row>
       <Row label="Language">{run.language || '—'}</Row>
-      <Row label="Duration">{mmss(run.duration_sec)}</Row>
+      {/* The provider reports the duration; a call it has not finished has none. */}
+      <Row label="Duration">
+        {run.duration_sec > 0 ? mmss(run.duration_sec) : <span className="text-slate-400">—</span>}
+      </Row>
       <Row label="Cost">{inrFull(usdToInr(run.cost_usd))}</Row>
       <Row label="Timestamp">{dateTime(run.started_at)}</Row>
       <Row label="Outcome"><OutcomeBadge outcome={run.outcome} /></Row>

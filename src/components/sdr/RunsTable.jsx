@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { CalendarCheck, FileText } from 'lucide-react';
 import OutcomeBadge from '@/components/common/OutcomeBadge';
@@ -9,7 +9,6 @@ import { useConfig } from '@/lib/ConfigContext';
 const HEADERS = ['Time', 'Seller', 'Outcome', 'Duration', 'Transcript', 'Meeting', 'Agent/Rep', 'Channel', 'Sentiment', 'Script', 'Cost'];
 
 export default function RunsTable({ runs, leadsById = {} }) {
-  const [tick, setTick] = useState(0);
   const { usdToInr } = useConfig();
   const navigate = useNavigate();
 
@@ -20,11 +19,6 @@ export default function RunsTable({ runs, leadsById = {} }) {
     if (!lead || lead.meeting_status !== 'booked') return null;
     return lead.meeting_scheduled_at || null;
   };
-
-  useEffect(() => {
-    const id = setInterval(() => setTick((t) => t + 1), 1000);
-    return () => clearInterval(id);
-  }, []);
 
   return (
     <div className="bg-white border border-slate-200 rounded-lg overflow-x-auto">
@@ -41,12 +35,9 @@ export default function RunsTable({ runs, leadsById = {} }) {
             // A queued call is placed but not yet answered; it is pending, not blank.
             const live = r.status === 'in_progress' || r.status === 'queued';
             const escalated = r.outcome === 'escalated' || (r.escalation && r.escalation.triggered);
-            const liveDuration = live && r.started_at
-              ? Math.max(0, Math.round((Date.now() - new Date(r.started_at).getTime()) / 1000))
-              : r.duration_sec;
             return (
               <tr
-                key={r.id + tick * 0}
+                key={r.id}
                 onClick={() => navigate(`/sdr/calls/${r.id}`)}
                 className={`border-b border-slate-100 hover:bg-slate-50 cursor-pointer ${escalated ? 'border-l-2 border-l-red-600' : ''}`}
               >
@@ -82,7 +73,11 @@ export default function RunsTable({ runs, leadsById = {} }) {
                     ? <span className="text-[11px] text-slate-500">{r.status === 'queued' ? 'connecting…' : 'in progress'}</span>
                     : <OutcomeBadge outcome={r.outcome} />}
                 </td>
-                <td className="px-3 py-2 text-[13px] text-slate-700 font-mono tabular-nums">{mmss(liveDuration)}</td>
+                {/* Duration comes from the provider. A call it has not
+                    finished has no duration to report yet. */}
+                <td className="px-3 py-2 text-[13px] text-slate-700 font-mono tabular-nums">
+                  {r.duration_sec > 0 ? mmss(r.duration_sec) : <span className="text-slate-400">—</span>}
+                </td>
                 {/* The reason to open a row is the conversation, so say whether
                     there is one and make it the visible action. */}
                 <td className="px-3 py-2 whitespace-nowrap">
