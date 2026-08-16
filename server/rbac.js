@@ -46,7 +46,7 @@ export const ROLES = {
     label: 'Revenue Lead',
     blurb: 'Full visibility across the funnel plus optimization approvals. Cannot alter compliance records.',
     demo: { email: 'revenue@commerceads.io', full_name: 'Priya Nair' },
-    routes: ['/', '/signals', '/mql', '/sdr', '/workspace', '/pipeline', '/campaigns', '/churn', '/experiments', '/models', '/sellers', '/compliance'],
+    routes: ['/', '/signals', '/mql', '/sdr', '/workspace', '/pipeline', '/campaigns', '/churn', '/experiments', '/sellers', '/compliance'],
     entities: {
       ...READ_ALL,
       Campaign: ['read', 'update'],
@@ -60,7 +60,7 @@ export const ROLES = {
     label: 'Sales Manager',
     blurb: 'Runs the selling motion: queues, dialing, pipeline and campaign optimization. No compliance access.',
     demo: { email: 'manager@commerceads.io', full_name: 'Rohan Mehta' },
-    routes: ['/', '/signals', '/mql', '/sdr', '/workspace', '/pipeline', '/campaigns', '/churn', '/experiments', '/models', '/sellers'],
+    routes: ['/', '/signals', '/mql', '/sdr', '/workspace', '/pipeline', '/campaigns', '/churn', '/experiments', '/sellers'],
     entities: {
       ...READ_ALL,
       Lead: ['read', 'create', 'update'],
@@ -121,7 +121,7 @@ export const ROLES = {
     label: 'Analyst',
     blurb: 'Read-only across intelligence and performance. Cannot dial, approve, or edit any record.',
     demo: { email: 'analyst@commerceads.io', full_name: 'Diya Krishnan' },
-    routes: ['/', '/signals', '/campaigns', '/churn', '/experiments', '/models', '/sellers'],
+    routes: ['/', '/signals', '/campaigns', '/churn', '/experiments', '/sellers'],
     entities: { ...READ_ALL },
     caps: []
   },

@@ -27,8 +27,6 @@ import ChurnConsole from '@/pages/ChurnConsole';
 import Campaigns from '@/pages/Campaigns';
 import Experiments from '@/pages/Experiments';
 import ExperimentDetail from '@/pages/ExperimentDetail';
-import Models from '@/pages/Models';
-import ModelDetail from '@/pages/ModelDetail';
 import MqlInbox from '@/pages/MqlInbox';
 import Sellers from '@/pages/Sellers';
 import Compliance from '@/pages/Compliance';
@@ -73,8 +71,6 @@ const AuthenticatedApp = () => {
           <Route path="/churn" element={<ChurnConsole />} />
           <Route path="/experiments" element={<Experiments />} />
           <Route path="/experiments/:id" element={<ExperimentDetail />} />
-          <Route path="/models" element={<Models />} />
-          <Route path="/models/:key" element={<ModelDetail />} />
           <Route path="/sellers" element={<Sellers />} />
           <Route path="/compliance" element={<Compliance />} />
           </Route>

@@ -96,8 +96,6 @@ export default function Experiments() {
             message={canManage
               ? 'No experiments yet — create one to start measuring a change against a control.'
               : 'No experiments have been defined yet.'}
-            actionLabel="Open models"
-            to="/models"
           />
         </div>
       )}

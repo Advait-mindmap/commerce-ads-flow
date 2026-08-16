@@ -29,7 +29,6 @@ export const NAV_SECTIONS = [
     label: "Intelligence",
     items: [
       { title: "Experiments", path: "/experiments" },
-      { title: "Models", path: "/models" },
     ],
   },
   {
