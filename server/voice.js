@@ -53,6 +53,15 @@ export function mapStatus(providerStatus) {
   if (s.includes('fail') || s.includes('error')) return 'failed';
   if (s.includes('progress') || s.includes('ringing') || s.includes('ongoing')) return 'in_progress';
   if (s.includes('queue') || s.includes('initiat')) return 'queued';
+  /*
+   * The provider defers a call placed outside its own calling window and
+   * reports it as scheduled or rescheduled. That call has not happened yet, so
+   * treating it as finished closed it as a no-answer seconds after it was
+   * placed and buried a call that was still waiting to go out.
+   */
+  if (s.includes('schedul')) return 'queued';
+  // An unrecognised status is not evidence the call is over.
+  if (s) console.warn('[voice] unmapped provider status:', s);
   return 'completed';
 }
 
