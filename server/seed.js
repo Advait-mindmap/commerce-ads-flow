@@ -966,7 +966,21 @@ function buildAuditLog(r, { leads, campaigns, opportunities, agentRuns, experime
     ['human_rep', 'Ananya Iyer'], ['human_rep', 'Rohan Mehta'], ['human_rep', 'Meera Joshi'],
     ['agent', 'AI SDR (Meera)'], ['system', 'Scoring pipeline'], ['admin', 'Aarav Sharma']
   ];
-  const push = (entry) => logs.push({ id: `aud_${String(logs.length + 1).padStart(5, '0')}`, ...entry });
+  /*
+   * An audit entry records something that already happened, so its timestamp
+   * can never be in the future. One entry was stamped with a contract's start
+   * date, which put seeded rows weeks ahead of today and buried every real
+   * action beneath them when the log is read newest-first.
+   */
+  const auditCeiling = Date.now();
+  const push = (entry) => {
+    const t = new Date(entry.timestamp || auditCeiling).getTime();
+    return logs.push({
+      id: `aud_${String(logs.length + 1).padStart(5, '0')}`,
+      ...entry,
+      timestamp: new Date(Number.isFinite(t) ? Math.min(t, auditCeiling) : auditCeiling).toISOString()
+    });
+  };
 
   agentRuns.slice(0, 60).forEach((run, i) => {
     push({
@@ -1036,7 +1050,8 @@ function buildAuditLog(r, { leads, campaigns, opportunities, agentRuns, experime
       summary: `${o.package_name} closed at ${inrShort(o.monthly_budget)} per month for ${o.contract_months} months`,
       before_value: 'verbal',
       after_value: 'won',
-      timestamp: o.contract_start_date || o.created_date
+      // When the deal was won, not when its contract begins.
+      timestamp: o.closed_at || o.created_date
     });
   });
 
