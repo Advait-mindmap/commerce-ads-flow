@@ -186,12 +186,32 @@ export async function placeCall({ phone, userData = {}, agentId, fromNumber }) {
   return { ok: true, callId: extractCallId(res.data), from: from || null, raw: res.data };
 }
 
-/** Reads a call's current state. Tries both endpoint spellings the API uses. */
-export async function fetchExecution(callId) {
+/**
+ * Reads a call's current state.
+ *
+ * Three lookups, because availability varies by account: the direct execution
+ * and call endpoints both 404 on some plans, and the record is only reachable
+ * through the agent's execution list. The list is matched by id rather than
+ * taking the newest entry — picking "most recent with a transcript" would
+ * happily attach another call's conversation to this run.
+ */
+export async function fetchExecution(callId, { agentId } = {}) {
   const byExecution = await request(`/execution/${encodeURIComponent(callId)}`);
   if (byExecution.ok) return byExecution.data;
+
   const byCall = await request(`/call/${encodeURIComponent(callId)}`);
   if (byCall.ok) return byCall.data;
+
+  const agent = agentId || providerConfig().agentId;
+  if (!agent) return null;
+
+  for (const path of [`/agent/${encodeURIComponent(agent)}/executions`, `/executions?agent_id=${encodeURIComponent(agent)}`]) {
+    const res = await request(path);
+    if (!res.ok) continue;
+    const items = Array.isArray(res.data) ? res.data : (res.data?.data || res.data?.executions || []);
+    const match = items.find((e) => String(e.id || e.execution_id || e.call_id) === String(callId));
+    if (match) return match;
+  }
   return null;
 }
 
@@ -204,7 +224,7 @@ export function readExecution(data) {
     rawStatus: data.status || data.call_status || data.state || null,
     status: mapStatus(data.status || data.call_status || data.state),
     transcript: withTimestamps(normalizeTranscript(rawTranscript)),
-    duration_sec: Number(data.duration || data.duration_seconds || data.call_duration || 0) || 0,
+    duration_sec: Number(data.duration || data.duration_seconds || data.call_duration || data.conversation_duration || 0) || 0,
     recording_url: data.recording_url || data.recordingUrl || null,
     cost_usd: Number(data.cost || data.total_cost || 0) || 0
   };
