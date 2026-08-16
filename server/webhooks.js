@@ -2,53 +2,21 @@
  * Provider webhooks. Public by design — authenticated by a shared secret in the
  * request, not by a user session.
  *
+ * This is the primary way a call's result reaches the app: the provider pushes
+ * each status change and the run is settled from that event. The poller exists
+ * only to reconcile calls whose delivery never arrived.
+ *
  * The provider retries aggressively on any non-2xx, so every path here answers
  * 200 even on failure; the body carries whether the event actually matched.
  */
 
 import express from 'express';
-import { q, rowToObject, tableFor } from './db.js';
 import * as voice from './voice.js';
-
-const table = (entity) => tableFor(entity);
-
-async function patchRow(entity, id, data) {
-  const { rows } = await q(
-    `UPDATE ${table(entity)} SET data = data || $2::jsonb, updated_date = NOW() WHERE id = $1 RETURNING *`,
-    [id, JSON.stringify(data)]
-  );
-  return rows[0] ? rowToObject(rows[0]) : null;
-}
-
-async function insertRow(entity, payload) {
-  const { id, ...rest } = payload;
-  const rowId = id || `${entity.toLowerCase()}_${Math.random().toString(16).slice(2, 18)}`;
-  await q(
-    `INSERT INTO ${table(entity)} (id, data) VALUES ($1, $2::jsonb) ON CONFLICT (id) DO NOTHING`,
-    [rowId, JSON.stringify(rest)]
-  );
-}
-
-async function findByCallId(callId) {
-  const { rows } = await q(
-    `SELECT * FROM ${table('AgentRun')} WHERE data @> $1::jsonb LIMIT 1`,
-    [JSON.stringify({ provider_call_id: String(callId) })]
-  );
-  return rows[0] ? rowToObject(rows[0]) : null;
-}
-
-async function findByPhone(phone) {
-  const { rows } = await q(
-    `SELECT * FROM ${table('AgentRun')} WHERE data @> $1::jsonb
-     ORDER BY data->>'started_at' DESC LIMIT 1`,
-    [JSON.stringify({ contact_phone: `+91${phone}` })]
-  );
-  return rows[0] ? rowToObject(rows[0]) : null;
-}
+import { findRunForCall, settleRun } from './call-settlement.js';
 
 export const router = express.Router();
 
-router.post('/voice', async (req, res) => {
+async function handleVoiceEvent(req, res) {
   try {
     const { webhookSecret } = voice.providerConfig();
     const auth = req.get('authorization') || '';
@@ -56,76 +24,63 @@ router.post('/voice', async (req, res) => {
     const provided =
       req.get('x-bolna-signature') ||
       req.get('x-bolna-secret') ||
+      req.get('x-webhook-secret') ||
       (auth.toLowerCase().startsWith('bearer ') ? auth.slice(7).trim() : '');
-    const signatureVerified = Boolean(webhookSecret) && provided === webhookSecret;
 
+    // An unverified event is processed rather than dropped — refusing it would
+    // lose the transcript entirely. The run records that it was unverified.
+    const signatureVerified = Boolean(webhookSecret) && provided === webhookSecret;
     if (!signatureVerified) {
-      // Recorded on the run rather than rejected: dropping the event would lose
-      // the transcript entirely, and the console shows the unverified state.
-      console.warn('[webhook] voice signature mismatch — processing with signature_verified=false');
+      console.warn('[webhook] unverified voice event — processing with signature_verified=false');
     }
 
     const body = req.body || {};
     const callId = body.execution_id || body.call_id || body.id;
+    const phone = voice.last10(body.recipient_phone_number || body.phone_number || body.to || '');
 
-    let run = callId ? await findByCallId(callId) : null;
+    const run = await findRunForCall({ callId, phoneLast10: phone });
     if (!run) {
-      const phone = voice.last10(body.recipient_phone_number || body.phone_number || body.to || '');
-      if (phone) run = await findByPhone(phone);
-    }
-    if (!run) {
-      console.error('[webhook] no matching AgentRun for call', callId);
+      console.error('[webhook] no matching call record for', callId || phone || '(no identifier)');
       return res.json({ received: true, matched: false });
     }
 
     const read = voice.readExecution(body);
-    const patch = {
-      call_status: read.rawStatus ? String(read.rawStatus) : run.call_status,
-      status: read.status,
-      duration_sec: read.duration_sec || run.duration_sec || 0,
-      recording_url: read.recording_url || run.recording_url || null,
-      transcript: read.transcript.length ? read.transcript : (run.transcript || []),
-      signature_verified: signatureVerified,
-      cost_usd: read.cost_usd || run.cost_usd || 0
-    };
-    if (read.status === 'completed' && !run.outcome) {
-      patch.outcome = read.transcript.length ? 'qualified' : 'no_answer';
+
+    // Some events carry status but no turns. If this one closes the call and
+    // has no transcript, read the execution back so the run is settled with the
+    // conversation attached rather than as an empty no-answer.
+    if (!read.transcript.length && !['queued', 'in_progress'].includes(read.status) && run.provider_call_id) {
+      const execution = await voice.fetchExecution(run.provider_call_id);
+      if (execution) {
+        const full = voice.readExecution(execution);
+        if (full.transcript.length) {
+          read.transcript = full.transcript;
+          read.duration_sec = read.duration_sec || full.duration_sec;
+          read.recording_url = read.recording_url || full.recording_url;
+          read.cost_usd = read.cost_usd || full.cost_usd;
+        }
+      }
     }
-    await patchRow('AgentRun', run.id, patch);
 
-    await insertRow('Interaction', {
-      id: `int_${run.id}`,
-      seller_id: run.seller_id,
-      seller_name: run.seller_name,
-      lead_id: run.lead_id,
+    const result = await settleRun(run, read, { source: 'webhook', signatureVerified });
+
+    return res.json({
+      received: true,
+      matched: true,
       agent_run_id: run.id,
-      channel: 'voice_out',
-      actor_type: 'agent',
-      actor_name: 'AI SDR (Meera)',
-      direction: 'outbound',
-      outcome: read.status,
-      disposition: read.status,
-      duration_sec: patch.duration_sec,
-      summary: patch.transcript.length
-        ? `AI call ${read.status} with ${patch.transcript.length} conversation turns.`
-        : `AI call ${read.status}.`,
-      started_at: run.started_at || new Date().toISOString()
+      status: read.status,
+      settled: result.settled,
+      outcome: result.outcome || null,
+      signature_verified: signatureVerified
     });
-
-    await insertRow('AuditLog', {
-      actor_type: 'agent',
-      actor_name: 'AI SDR (Meera)',
-      action: 'ai_call_completed',
-      entity_type: 'AgentRun',
-      entity_id: run.id,
-      entity_name: run.seller_name,
-      summary: `Call ${callId} finished with status ${read.status}${signatureVerified ? '' : ' (unverified signature)'}.`,
-      timestamp: new Date().toISOString()
-    });
-
-    return res.json({ received: true, agent_run_id: run.id, status: read.status, signature_verified: signatureVerified });
   } catch (err) {
     console.error('[webhook] voice handler failed', err.message);
     return res.json({ received: true, error: err.message });
   }
-});
+}
+
+// Both paths are accepted. The provider-named one is what is already configured
+// in the console, and changing a live webhook URL is a needless way to lose
+// events. Neither path is ever shown to a user.
+router.post('/voice', handleVoiceEvent);
+router.post('/bolna', handleVoiceEvent);

@@ -107,19 +107,18 @@ async function boot() {
 
     await resumeInFlight();
 
-    // Real calls have nothing pushing their result back, so they are polled
-    // until they settle. Every twenty seconds keeps the console current
-    // without hammering the provider.
+    // The webhook settles calls as they happen. This is reconciliation only,
+    // for events that never arrived, so it runs on a slow cadence.
     const poll = async () => {
       try {
         const n = await pollLiveCalls();
-        if (n) console.log(`[scheduler] settled ${n} live call(s)`);
+        if (n) console.log(`[scheduler] reconciled ${n} call(s) the webhook missed`);
       } catch (err) {
         console.error('[scheduler] live call poll failed', err.message);
       }
     };
     await poll();
-    setInterval(poll, 20 * 1000).unref?.();
+    setInterval(poll, 60 * 1000).unref?.();
 
     // Experiment arms are a read of the funnel, so they are recomputed on a
     // timer rather than written once at seed time.
