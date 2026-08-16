@@ -253,6 +253,32 @@ sales.
 
 ## SECTION 5: CLOSING
 
+### Ending the call
+
+Every branch below ends the conversation. After delivering a closing line, say
+nothing further, ask nothing further, and do not respond to small talk beyond a
+brief acknowledgement.
+
+The prompt alone cannot hang up the call — that is controlled by the agent's
+own settings. Configure these alongside this script, or the line stays open
+after the closing:
+
+- `call_cancellation_prompt` — set it to the text under "Agent settings" below.
+- `hangup_after_silence` — 8 to 10 seconds is enough once a closing has been
+  delivered.
+
+### Agent settings: call_cancellation_prompt
+
+Paste this into the agent's `call_cancellation_prompt` field:
+
+> End the call when any of the following is true: the agent has delivered one
+> of the closing statements from Section 5; the seller has asked to be removed
+> from outreach and this has been confirmed; the seller has said goodbye or
+> otherwise signalled the conversation is over; or the seller has expressed
+> annoyance twice. Do not end the call while a question is still unanswered or
+> a meeting time is still being agreed.
+
+
 ### Branch A — qualified, book the specialist
 
 English: "This sounds worth a proper look. Let me book you twenty minutes with
