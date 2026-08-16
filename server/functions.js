@@ -345,6 +345,9 @@ function callContext({ lead, seller, contact, scriptVariant }) {
   const reasons = (seller && seller.pta_reasons) || (lead && lead.pta_reasons) || [];
   const growth = seller ? Math.abs(Math.round((seller.gmv_growth_30 || 0) * 100)) : 0;
   return {
+    // Whose team the agent says it is calling from. Configurable because the
+    // agent should name the actual marketplace, not a generic phrase.
+    marketplace_name: process.env.MARKETPLACE_NAME || 'the marketplace',
     seller_name: (lead && lead.seller_name) || (seller && seller.display_name) || 'there',
     contact_name: (contact && contact.full_name) || '',
     category: (lead && lead.category) || (seller && seller.category) || '',
@@ -353,8 +356,10 @@ function callContext({ lead, seller, contact, scriptVariant }) {
     signal_detail: reasons[1] || '',
     organic_decline_pct: String(Math.round(((seller && seller.organic_impr_decline) || 0) * 100)),
     sku_added_30d: String((seller && seller.sku_added_30d) || 0),
-    gmv_trend: (seller && seller.gmv_growth_30) > 0 ? `up ${growth}% month on month` : `down ${growth}% month on month`,
-    budget_band: `${(seller && seller.budget_low) || 0} to ${(seller && seller.budget_stretch) || 0}`,
+    gmv_trend: (seller && seller.gmv_growth_30) > 0 ? `up ${growth} per cent month on month` : `down ${growth} per cent month on month`,
+    // budget_band is deliberately NOT sent. The agent is forbidden from stating
+    // a price, and handing it a rupee figure is the surest way to make it say
+    // one. The seller's own stated budget is captured on the call instead.
     language: (contact && contact.preferred_language) || (seller && seller.preferred_language) || 'Hindi',
     script_variant: scriptVariant || 'v3_signal_open'
   };
