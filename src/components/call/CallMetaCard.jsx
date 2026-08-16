@@ -38,8 +38,17 @@ export default function CallMetaCard({ run, seller, contact }) {
             <Radio className="w-3.5 h-3.5" /> Live call
           </span>
         ) : (
-          <span className="inline-flex items-center gap-1 text-slate-500 text-xs">
-            <FlaskConical className="w-3.5 h-3.5" /> Demo data
+          <span
+            className="inline-flex items-center gap-1 text-slate-500 text-xs"
+            title={run.simulated_reason === 'seeded_number_not_dialled'
+              ? 'Seeded demo numbers are never dialled for real. Use Start dial with a typed number to place a live call.'
+              : run.simulated_reason === 'no_voice_credentials'
+                ? 'No voice credentials configured, so this call was simulated.'
+                : run.simulated_reason === 'live_dialling_disabled'
+                  ? 'Live dialling is turned off, so this call was simulated.'
+                  : 'This call was generated as demo data — no number was dialled.'}
+          >
+            <FlaskConical className="w-3.5 h-3.5" /> Simulated
           </span>
         )}
       </Row>

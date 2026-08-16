@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { Loader2, Phone } from 'lucide-react';
+import { FlaskConical, Loader2, Phone } from 'lucide-react';
 import { api } from '@/api/client';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -28,7 +28,7 @@ export default function StartDialModal({ open, onOpenChange, onPlaced }) {
 
   useEffect(() => {
     if (!open) return;
-    setError(''); setBlocked(null);
+    setError(''); setBlocked(null); setSimulated('');
     api.entities.Seller.list('-pta_score', 500).then(setSellers).catch(() => setSellers([]));
   }, [open]);
 
@@ -46,8 +46,10 @@ export default function StartDialModal({ open, onOpenChange, onPlaced }) {
     return digits.length === 10 ? `+91${digits}` : null;
   }, [phone]);
 
+  const [simulated, setSimulated] = useState('');
+
   const place = async () => {
-    setError(''); setBlocked(null);
+    setError(''); setBlocked(null); setSimulated('');
     setBusy(true);
     try {
       const res = await api.functions.invoke('startDial', {
@@ -58,6 +60,13 @@ export default function StartDialModal({ open, onOpenChange, onPlaced }) {
       const data = res?.data || res;
       if (data?.error) throw new Error(data.error);
       if (data?.blocked) { setBlocked(data.reason); return; }
+      // Keep the modal open when nothing rang, so the reason is read rather
+      // than flashing past in a toast that says the call was placed.
+      if (data?.simulated) {
+        setSimulated(data.note || 'This call was simulated — no phone rang.');
+        onPlaced?.(data);
+        return;
+      }
       onPlaced?.(data);
       onOpenChange(false);
       setPhone(''); setLabel(''); setSellerId(null); setSearch('');
@@ -72,6 +81,13 @@ export default function StartDialModal({ open, onOpenChange, onPlaced }) {
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="sm:max-w-md">
         <DialogHeader><DialogTitle className="text-[15px]">Start a call</DialogTitle></DialogHeader>
+
+        {simulated && (
+          <div className="flex items-start gap-2 border rounded px-3 py-2 text-xs" style={{ backgroundColor: '#FEF3C7', borderColor: '#FCD34D' }}>
+            <FlaskConical className="w-3.5 h-3.5 text-amber-700 mt-0.5 shrink-0" />
+            <span className="text-amber-900">{simulated}</span>
+          </div>
+        )}
 
         <div className="space-y-4">
           <div className="space-y-1.5">

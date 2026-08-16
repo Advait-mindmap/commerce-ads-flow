@@ -435,10 +435,21 @@ async function dial({ phone, lead, seller, contact, scriptVariant, rng, startedA
     };
   }
 
-  // Simulated: the run starts in_progress and a timer completes it.
+  /*
+   * Simulated: the run starts in_progress and a timer completes it.
+   *
+   * Record why. A dial that quietly becomes a simulation looks exactly like a
+   * real call that failed, and someone testing the provider integration will
+   * reasonably conclude it is broken when nothing was ever dialled.
+   */
+  const simulatedReason = !voice.isConfigured()
+    ? 'no_voice_credentials'
+    : (LIVE_DIAL_SCOPE === 'none' ? 'live_dialling_disabled' : 'seeded_number_not_dialled');
+
   const preview = buildCall({ seller, lead, rng, startedAt, scriptVariant });
   return {
     provider: 'simulated',
+    simulated_reason: simulatedReason,
     status: 'in_progress',
     call_status: 'simulated',
     transcript: preview.transcript.slice(0, 1),
@@ -447,6 +458,14 @@ async function dial({ phone, lead, seller, contact, scriptVariant, rng, startedA
     _pending: { scenario: preview.scenario }
   };
 }
+
+
+/** Plain-English explanation of why a dial did not ring a real phone. */
+const SIMULATED_EXPLANATION = {
+  no_voice_credentials: 'No voice credentials are configured, so this call was simulated rather than placed.',
+  live_dialling_disabled: 'Live dialling is turned off (LIVE_DIAL_SCOPE=none), so this call was simulated.',
+  seeded_number_not_dialled: 'This is a seeded demo number, which is never dialled for real — the call was simulated. Type a number into Start dial to place a live call.'
+};
 
 const handlers = {
   /**
@@ -546,7 +565,10 @@ const handlers = {
       summary: `Manual outbound call to ${phone} via ${started.provider}`
     });
 
-    if (started.provider === 'simulated') scheduleCompletion(runId);
+    if (started.provider === 'simulated') {
+      await patchRow('AgentRun', runId, { simulated_reason: started.simulated_reason });
+      scheduleCompletion(runId);
+    }
 
     return {
       status: 200,
@@ -556,7 +578,13 @@ const handlers = {
         status: started.status,
         provider: started.provider,
         phone,
-        provider_call_id: started.provider_call_id || null
+        provider_call_id: started.provider_call_id || null,
+        // So the caller never has to guess whether a phone actually rang.
+        simulated: started.provider === 'simulated',
+        simulated_reason: started.simulated_reason || null,
+        note: started.provider === 'simulated'
+          ? SIMULATED_EXPLANATION[started.simulated_reason] || 'This call was simulated.'
+          : null
       }
     };
   },
@@ -751,7 +779,10 @@ const handlers = {
 
     // Only the simulator needs a timer; a real call is advanced by the webhook
     // or by polling the provider.
-    if (started.provider === 'simulated') scheduleCompletion(runId);
+    if (started.provider === 'simulated') {
+      await patchRow('AgentRun', runId, { simulated_reason: started.simulated_reason });
+      scheduleCompletion(runId);
+    }
 
     return {
       status: 200,
@@ -761,6 +792,11 @@ const handlers = {
         status: started.status,
         provider: started.provider,
         provider_call_id: started.provider_call_id || null,
+        simulated: started.provider === 'simulated',
+        simulated_reason: started.simulated_reason || null,
+        note: started.provider === 'simulated'
+          ? SIMULATED_EXPLANATION[started.simulated_reason] || 'This call was simulated.'
+          : null,
         lead_id: leadId,
         started_at: startedAt
       }
