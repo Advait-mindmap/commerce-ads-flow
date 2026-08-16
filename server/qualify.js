@@ -18,21 +18,31 @@
  */
 
 import Anthropic from '@anthropic-ai/sdk';
+import OpenAI from 'openai';
 import { extractFromTranscript } from './call-sim.js';
 
-const MODEL = process.env.QUALIFY_MODEL || 'claude-opus-5';
+/*
+ * Either provider can read the transcript. Anthropic is preferred when a key
+ * for it exists; otherwise OpenAI. Both are pinned to the same JSON schema, so
+ * the record this module returns is identical either way and nothing
+ * downstream knows or cares which one read the call.
+ */
+const anthropicKey = () => process.env.ANTHROPIC_API_KEY || process.env.ANTHROPIC_AUTH_TOKEN;
+const openaiKey = () => process.env.OPENAI_API_KEY;
+
+export const provider = () => (anthropicKey() ? 'anthropic' : (openaiKey() ? 'openai' : null));
+export const isConfigured = () => Boolean(provider());
+
+const ANTHROPIC_MODEL = process.env.QUALIFY_MODEL || 'claude-opus-5';
+const OPENAI_MODEL = process.env.QUALIFY_OPENAI_MODEL || 'gpt-4o';
 // A scoped extraction, not a reasoning problem. Raise to "high" if calls in a
 // new language are being read poorly.
 const EFFORT = process.env.QUALIFY_EFFORT || 'medium';
 
-export const isConfigured = () =>
-  Boolean(process.env.ANTHROPIC_API_KEY || process.env.ANTHROPIC_AUTH_TOKEN);
-
-let client = null;
-const getClient = () => {
-  if (!client) client = new Anthropic();
-  return client;
-};
+let anthropic = null;
+let openai = null;
+const getAnthropic = () => { if (!anthropic) anthropic = new Anthropic(); return anthropic; };
+const getOpenAI = () => { if (!openai) openai = new OpenAI(); return openai; };
 
 /*
  * Mirrors the shape the console and Call Detail already read. additionalProperties
@@ -122,7 +132,7 @@ Rules that decide the record:
 If the transcript is too short or garbled to establish anything, say so in the summary and leave the fields unestablished rather than guessing.`;
 
 /** Maps the model's reading onto the record shape the app stores. */
-function toRecord(parsed, transcript) {
+function toRecord(parsed, transcript, readBy) {
   const q = parsed.qualification;
   const sellerTurns = transcript.filter((t) => t.role === 'user');
   const sellerChars = sellerTurns.reduce((n, t) => n + String(t.content || '').length, 0);
@@ -140,7 +150,7 @@ function toRecord(parsed, transcript) {
       confidence: Number(Math.min(1, Math.max(0, q.confidence)).toFixed(2)),
       rationale: q.rationale,
       // So a rep looking at a verdict can always tell what produced it.
-      read_by: 'claude'
+      read_by: readBy
     },
     meeting_booked: parsed.meeting_booked,
     meeting_time_text: parsed.meeting_time_text || null,
@@ -188,33 +198,68 @@ export async function analyseTranscript(transcript = [], context = {}) {
     context.language && `Expected language: ${context.language}`
   ].filter(Boolean).join('\n');
 
+  const prompt = `${preamble ? `${preamble}
+
+` : ''}Transcript:
+
+${conversation}`;
+  const which = provider();
+
   try {
-    const response = await getClient().messages.create({
-      model: MODEL,
-      max_tokens: 4096,
-      system: SYSTEM,
-      output_config: { effort: EFFORT, format: { type: 'json_schema', schema: SCHEMA } },
-      messages: [{
-        role: 'user',
-        content: `${preamble ? `${preamble}\n\n` : ''}Transcript:\n\n${conversation}`
-      }]
-    });
+    let parsed;
 
-    // A refusal or a truncated response is a failure, not a result — check
-    // before reading content, or a refusal reads as an empty transcript.
-    if (response.stop_reason === 'refusal') {
-      console.error('[qualify] model declined:', response.stop_details?.category || 'unknown');
-      return fallback();
+    if (which === 'anthropic') {
+      const response = await getAnthropic().messages.create({
+        model: ANTHROPIC_MODEL,
+        max_tokens: 4096,
+        system: SYSTEM,
+        output_config: { effort: EFFORT, format: { type: 'json_schema', schema: SCHEMA } },
+        messages: [{ role: 'user', content: prompt }]
+      });
+
+      // A refusal or a truncation is a failure, not a result — check before
+      // reading content, or a refusal reads as an empty transcript.
+      if (response.stop_reason === 'refusal') {
+        console.error('[qualify] model declined:', response.stop_details?.category || 'unknown');
+        return fallback();
+      }
+      if (response.stop_reason === 'max_tokens') {
+        console.error('[qualify] response truncated — falling back to keywords');
+        return fallback();
+      }
+      const text = response.content.find((b) => b.type === 'text')?.text;
+      if (!text) return fallback();
+      parsed = JSON.parse(text);
+    } else {
+      const response = await getOpenAI().chat.completions.create({
+        model: OPENAI_MODEL,
+        messages: [
+          { role: 'system', content: SYSTEM },
+          { role: 'user', content: prompt }
+        ],
+        // Strict mode pins the reply to the same schema the other provider is
+        // given, so both produce an identical record.
+        response_format: {
+          type: 'json_schema',
+          json_schema: { name: 'call_reading', strict: true, schema: SCHEMA }
+        }
+      });
+
+      const choice = response.choices?.[0];
+      if (choice?.finish_reason === 'length') {
+        console.error('[qualify] response truncated — falling back to keywords');
+        return fallback();
+      }
+      if (choice?.message?.refusal) {
+        console.error('[qualify] model declined:', choice.message.refusal);
+        return fallback();
+      }
+      const text = choice?.message?.content;
+      if (!text) return fallback();
+      parsed = JSON.parse(text);
     }
-    if (response.stop_reason === 'max_tokens') {
-      console.error('[qualify] response truncated — falling back to keywords');
-      return fallback();
-    }
 
-    const text = response.content.find((b) => b.type === 'text')?.text;
-    if (!text) return fallback();
-
-    return toRecord(JSON.parse(text), transcript);
+    return toRecord(parsed, transcript, which);
   } catch (err) {
     console.error('[qualify] read failed, falling back to keywords:', err.message);
     return fallback();

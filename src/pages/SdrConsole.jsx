@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { Phone, RefreshCw } from 'lucide-react';
+import { Phone, Radio, RefreshCw } from 'lucide-react';
 import { api } from '@/api/client';
 import { Button } from '@/components/ui/button';
 import { useToast } from '@/components/ui/use-toast';
@@ -23,6 +23,8 @@ export default function SdrConsole() {
   const [leads, setLeads] = useState([]);
   const [modalOpen, setModalOpen] = useState(false);
   const [syncing, setSyncing] = useState(false);
+  // Seeded demo calls outnumber real ones, so make the real ones filterable.
+  const [liveOnly, setLiveOnly] = useState(false);
   const [dialOpen, setDialOpen] = useState(false);
   const { toast } = useToast();
   const { hasCap } = useAuth();
@@ -150,6 +152,15 @@ export default function SdrConsole() {
               <RefreshCw className={`w-3.5 h-3.5 mr-1.5 ${syncing ? 'animate-spin' : ''}`} />
               {syncing ? 'Syncing…' : 'Sync from provider'}
             </Button>
+            <Button
+              size="sm"
+              variant={liveOnly ? 'default' : 'outline'}
+              className={`h-8 text-xs ${liveOnly ? '' : 'bg-white'}`}
+              onClick={() => setLiveOnly((v) => !v)}
+              title="Show only calls placed through the voice provider"
+            >
+              <Radio className="w-3.5 h-3.5 mr-1.5" /> {liveOnly ? 'Live only' : 'All calls'}
+            </Button>
             <Button size="sm" variant="outline" className="h-8 text-xs bg-white" onClick={() => setDialOpen(true)}>
               <Phone className="w-3.5 h-3.5 mr-1.5" /> Start dial
             </Button>
@@ -163,7 +174,13 @@ export default function SdrConsole() {
       <SdrStatStrip stats={view.stats} />
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 items-start">
-        <div className="lg:col-span-2"><RunsTable runs={view.today.length ? view.today : runs.slice(0, 40)} leadsById={leadsById} /></div>
+        <div className="lg:col-span-2"><RunsTable
+            runs={(() => {
+              const rows = view.today.length ? view.today : runs.slice(0, 40);
+              return liveOnly ? rows.filter((r) => r.provider_call_id) : rows;
+            })()}
+            leadsById={leadsById}
+          /></div>
         <div className="space-y-4">
           <QueueDepthCard depth={view.depth} nextDialAt={nextDial} />
           <OutcomeDonut data={view.outcomes} />
