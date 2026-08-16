@@ -9,13 +9,13 @@ export async function dialOne(leadIdOrLead, options = {}) {
     return {
       lead_id: null,
       status: 'failed',
-      error: 'No lead ID supplied for bolnaCall',
+      error: 'No lead was supplied for this call',
       data: null
     };
   }
 
   try {
-    const res = await api.functions.invoke('bolnaCall', { lead_id, ...options });
+    const res = await api.functions.invoke('placeCall', { lead_id, ...options });
     const data = res && typeof res === 'object' && 'data' in res ? res.data : res;
 
     if (data && data.blocked) {
@@ -63,7 +63,7 @@ export async function dialOne(leadIdOrLead, options = {}) {
     return {
       lead_id,
       status: 'failed',
-      error: error?.message || 'Unexpected bolnaCall error',
+      error: error?.message || 'The call could not be placed',
       data: null,
       exception: error
     };

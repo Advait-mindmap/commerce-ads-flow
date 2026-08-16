@@ -80,7 +80,7 @@ export default function TranscriptViewer({
           </React.Fragment>
         );
       })}
-      {turns.length === 0 && <p className="text-xs text-slate-500">No transcript on this call yet — pull the latest from Bolna.</p>}
+      {turns.length === 0 && <p className="text-xs text-slate-500">No transcript on this call yet — pull the latest from the voice service.</p>}
     </Panel>
   );
 }

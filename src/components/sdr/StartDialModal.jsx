@@ -146,14 +146,14 @@ export default function StartDialModal({ open, onOpenChange, onPlaced }) {
             <div className="rounded border border-red-200 bg-red-50 px-3 py-2 text-xs text-red-700">{error}</div>
           )}
 
-          {/* Say plainly what will happen, and which agent will speak — the
-              configured agent is not necessarily the one the app describes. */}
+          {/* State plainly whether a phone will ring. The voice vendor is never
+              named to a user. */}
           <p className="text-[11px] text-slate-500">
             {voice_provider === 'simulated'
-              ? 'No voice credentials are configured, so this call is simulated locally — no phone will actually ring.'
+              ? 'Voice calling is not configured, so this call is simulated — no phone will actually ring.'
               : voice?.reachable
-                ? <>This places a <span className="font-medium text-slate-700">real outbound call</span>{voice.agent_name ? <> using the voice agent “{voice.agent_name}”</> : null}.</>
-                : 'Voice credentials are set but the provider is not reachable — this call will fail.'}
+                ? <>This places a <span className="font-medium text-slate-700">real outbound call</span> and the number will ring.</>
+                : 'Voice calling is configured but currently unreachable — this call will fail.'}
           </p>
         </div>
 

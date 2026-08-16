@@ -18,7 +18,7 @@ server/
   rbac.js               Role definitions — the authority on who can do what
   auth.js               Registration, login, sessions, password reset
   entities.js           Generic CRUD for all 13 entities, RBAC-enforced
-  functions.js          bolnaCall, extractQualification, the suppression gate
+  functions.js          placeCall, extractQualification, the suppression gate
   call-sim.js           Call generation and transcript extraction
   seed.js               Deterministic demo dataset
 ```
@@ -66,12 +66,12 @@ hide what it cannot use, but that copy is never the security boundary.
 
 ## What is simulated
 
-**Voice calls.** No Bolna credentials are wired up, so calls are generated
+**Voice calls.** Without voice credentials, calls are generated
 locally instead of placed over the wire. Everything downstream is real and runs
 against the database: the suppression gate, the AgentRun lifecycle
 (`in_progress` → terminal), transcript rendering, rule-based qualification
 extraction, guardrails and escalation routing. Replacing the real dialer means
-changing `placeCall()` in `server/functions.js` and nothing else.
+changing `server/voice.js` and nothing else.
 
 **Email.** No transactional email provider is configured. With `DEMO_MODE=true`
 the API returns OTP codes and password-reset links in the response so those

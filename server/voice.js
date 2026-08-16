@@ -1,27 +1,29 @@
 /**
- * Bolna voice provider integration.
+ * Voice provider integration.
  *
- * Ported from the original platform functions so the live dialer behaves
- * identically: same endpoint, same payload shape, same tolerant parsing of the
- * three transcript formats Bolna returns, and the same webhook matching rules.
+ * The provider is an implementation detail and is never named anywhere a user
+ * can reach — not in the UI, not in an error, not in a function name visible in
+ * devtools. Swapping vendors should touch this file and nothing else.
  *
- * When credentials are absent the caller falls back to local simulation — but
- * that decision belongs to functions.js, not here. This module only talks to
- * the provider.
+ * Tolerates the three transcript shapes the provider returns, and the same
+ * webhook matching rules. When credentials are absent the caller falls back to
+ * local simulation — that decision belongs to functions.js, not here.
  */
 
-const API_BASE = process.env.BOLNA_API_BASE || 'https://api.bolna.dev';
+const API_BASE = process.env.VOICE_API_BASE || process.env.BOLNA_API_BASE || 'https://api.bolna.dev';
 const TIMEOUT_MS = 15000;
 
-export const bolnaConfig = () => ({
-  apiKey: process.env.BOLNA_API_KEY,
-  agentId: process.env.BOLNA_AGENT_ID,
-  webhookSecret: process.env.BOLNA_WEBHOOK_SECRET
+// New names take precedence; the previous vendor-specific names still resolve
+// so an existing deployment keeps working through the rename.
+export const providerConfig = () => ({
+  apiKey: process.env.VOICE_API_KEY || process.env.BOLNA_API_KEY,
+  agentId: process.env.VOICE_AGENT_ID || process.env.BOLNA_AGENT_ID,
+  webhookSecret: process.env.VOICE_WEBHOOK_SECRET || process.env.BOLNA_WEBHOOK_SECRET
 });
 
 /** True only when a real call could actually be placed. */
 export function isConfigured() {
-  const { apiKey, agentId } = bolnaConfig();
+  const { apiKey, agentId } = providerConfig();
   return Boolean(apiKey && agentId && apiKey !== 'change-me' && agentId !== 'change-me');
 }
 
@@ -40,9 +42,9 @@ export function extractCallId(data) {
   return data.call_id || data.execution_id || data.id || (data.data && data.data.call_id) || null;
 }
 
-/** Bolna's status vocabulary varies; collapse it to ours. */
-export function mapStatus(bolnaStatus) {
-  const s = String(bolnaStatus || '').toLowerCase();
+/** The provider's status vocabulary varies; collapse it to ours. */
+export function mapStatus(providerStatus) {
+  const s = String(providerStatus || '').toLowerCase();
   if (s.includes('complet')) return 'completed';
   if (s.includes('busy')) return 'busy';
   if (s.includes('no-answer') || s.includes('no_answer') || s.includes('noanswer')) return 'no_answer';
@@ -59,7 +61,7 @@ function roleOf(value) {
 }
 
 /**
- * Bolna returns transcripts in three shapes: an array of turns, a single
+ * Transcripts arrive in three shapes: an array of turns, a single
  * newline-delimited prefixed string, or separate agent/user arrays. All three
  * are handled — the UI only ever sees {role, content} turns.
  */
@@ -124,7 +126,7 @@ export function withTimestamps(turns) {
 }
 
 async function request(path, { method = 'GET', body } = {}) {
-  const { apiKey } = bolnaConfig();
+  const { apiKey } = providerConfig();
   const controller = new AbortController();
   const abort = setTimeout(() => controller.abort(), TIMEOUT_MS);
   try {
@@ -142,7 +144,7 @@ async function request(path, { method = 'GET', body } = {}) {
     try { data = JSON.parse(text); } catch { data = { raw: text }; }
     return { ok: res.ok, status: res.status, data };
   } catch (err) {
-    return { ok: false, status: 0, data: { error: err.name === 'AbortError' ? 'Bolna request timed out' : err.message } };
+    return { ok: false, status: 0, data: { error: err.name === 'AbortError' ? 'The voice service timed out' : err.message } };
   } finally {
     clearTimeout(abort);
   }
@@ -154,7 +156,7 @@ async function request(path, { method = 'GET', body } = {}) {
  * lets the agent open with the seller's own numbers.
  */
 export async function placeCall({ phone, userData = {}, agentId }) {
-  const cfg = bolnaConfig();
+  const cfg = providerConfig();
   const payload = {
     agent_id: agentId || cfg.agentId,
     recipient_phone_number: phone,
@@ -163,12 +165,12 @@ export async function placeCall({ phone, userData = {}, agentId }) {
 
   const res = await request('/call', { method: 'POST', body: payload });
   if (!res.ok) {
-    return { ok: false, error: res.data?.error || res.data?.detail || `Bolna returned ${res.status}`, status: res.status, raw: res.data };
+    return { ok: false, error: res.data?.error || res.data?.detail || `The voice service returned ${res.status}`, status: res.status, raw: res.data };
   }
   return { ok: true, callId: extractCallId(res.data), raw: res.data };
 }
 
-/** Reads a call's current state. Tries both endpoint spellings Bolna uses. */
+/** Reads a call's current state. Tries both endpoint spellings the API uses. */
 export async function fetchExecution(callId) {
   const byExecution = await request(`/execution/${encodeURIComponent(callId)}`);
   if (byExecution.ok) return byExecution.data;
@@ -194,8 +196,8 @@ export function readExecution(data) {
 
 /** Connectivity probe that does NOT place a call — safe to run on boot. */
 export async function probe() {
-  if (!isConfigured()) return { configured: false, reachable: false, detail: 'BOLNA_API_KEY/BOLNA_AGENT_ID not set' };
-  const { agentId } = bolnaConfig();
+  if (!isConfigured()) return { configured: false, reachable: false, detail: 'Voice credentials are not configured' };
+  const { agentId } = providerConfig();
   const res = await request(`/agent/${encodeURIComponent(agentId)}`);
   if (!res.ok) {
     return { configured: true, reachable: false, detail: res.data?.error || res.data?.detail || `HTTP ${res.status}` };

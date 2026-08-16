@@ -8,7 +8,7 @@
  */
 
 import express from 'express';
-import * as bolna from './bolna.js';
+import * as voice from './voice.js';
 
 // Frankfurter is the ECB's published reference rates — no API key, no quota.
 const FX_ENDPOINT = 'https://api.frankfurter.app/latest?from=USD&to=INR';
@@ -45,14 +45,14 @@ async function refreshFx() {
 }
 
 // Cached provider health. Probed on boot with a GET — it never places a call.
-let voice = { configured: false, reachable: false, detail: 'not probed' };
+let voiceStatus = { configured: false, reachable: false, detail: 'not probed' };
 
 async function refreshVoice() {
   try {
-    voice = await bolna.probe();
-    console.log(`[config] voice provider: ${voice.configured ? (voice.reachable ? 'reachable' : 'unreachable') : 'not configured'} — ${voice.detail}`);
+    voiceStatus = await voice.probe();
+    console.log(`[config] voice: ${voiceStatus.configured ? (voiceStatus.reachable ? 'reachable' : 'unreachable') : 'not configured'} — ${voiceStatus.detail}`);
   } catch (err) {
-    voice = { configured: bolna.isConfigured(), reachable: false, detail: err.message };
+    voiceStatus = { configured: voice.isConfigured(), reachable: false, detail: err.message };
   }
 }
 
@@ -74,9 +74,14 @@ router.get('/', (_req, res) => {
     // are real sellers.
     data_mode: process.env.SEED_ON_BOOT === 'false' ? 'live' : 'synthetic',
     // Calls are generated locally until voice credentials are configured.
-    voice_provider: bolna.isConfigured() ? 'bolna' : 'simulated',
+    // Never the vendor's name — the UI only needs to know whether calls are real.
+    voice_provider: voice.isConfigured() ? 'live' : 'simulated',
+    // Deliberately narrow: whether calls are real and reachable, and which
+    // dials may ring a phone. The vendor's identity, agent id and agent name
+    // stay server-side — they are visible in the boot log, never over the API.
     voice: {
-      ...voice,
+      configured: voiceStatus.configured,
+      reachable: voiceStatus.reachable,
       // Which dials are permitted to actually ring a phone. Defaults to manual
       // only, because seeded seller numbers are generated and would otherwise
       // cold-call real people.

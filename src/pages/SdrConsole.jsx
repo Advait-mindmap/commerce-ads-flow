@@ -146,7 +146,7 @@ export default function SdrConsole() {
         open={dialOpen}
         onOpenChange={setDialOpen}
         onPlaced={async (data) => {
-          toast({ title: 'Call placed', description: `${data.phone} · ${data.provider === 'bolna' ? 'live call' : 'simulated'}` });
+          toast({ title: 'Call placed', description: `${data.phone} · ${data.provider === 'live' ? 'live call' : 'simulated'}` });
           setRuns(await api.entities.AgentRun.list('-started_at', 500));
         }}
       />

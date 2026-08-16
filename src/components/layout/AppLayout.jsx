@@ -14,7 +14,7 @@ export default function AppLayout() {
   const banner = [
     `${environment} environment`,
     data_mode === 'synthetic' ? 'synthetic data' : 'live data',
-    voice_provider === 'simulated' ? 'simulated voice' : `voice via ${voice_provider}`
+    voice_provider === 'simulated' ? 'simulated voice' : 'live voice'
   ].join(' · ');
 
   return (

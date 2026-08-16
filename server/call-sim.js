@@ -1,7 +1,7 @@
 /**
  * AI SDR call generation and qualification extraction.
  *
- * No Bolna credentials are wired up (BOLNA_API_KEY is unset), so calls are
+ * With no voice credentials configured, calls are
  * simulated locally rather than placed over the wire. Everything downstream of
  * the call — the suppression gate, the AgentRun lifecycle, transcript
  * rendering, extraction, guardrails and escalation — is real and runs against

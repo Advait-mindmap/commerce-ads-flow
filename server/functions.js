@@ -1,7 +1,7 @@
 /**
  * Callable backend functions: /api/functions/:name
  *
- * bolnaCall is the critical path in SPEC.md — the suppression gate runs before
+ * placeCall is the critical path in SPEC.md — the suppression gate runs before
  * any dial, blocks are reported with their reason rather than swallowed, and a
  * placed call moves through in_progress to a terminal state so the Call Detail
  * poller has a real transition to observe.
@@ -14,7 +14,7 @@ import { CAPS, hasCap } from './rbac.js';
 import { makeRng } from './rng.js';
 import { buildCall, extractFromTranscript } from './call-sim.js';
 import { newEntityId } from './entities.js';
-import * as bolna from './bolna.js';
+import * as voice from './voice.js';
 import {
   analyseExperiment,
   assignmentsFor,
@@ -371,7 +371,8 @@ async function primaryContact(sellerId) {
 }
 
 /**
- * Places the call through Bolna when credentials exist, otherwise runs the
+ * Places the call through the voice provider when credentials exist,
+ * otherwise runs the
  * local simulation. Returns the AgentRun fields describing how it started.
  */
 /**
@@ -397,14 +398,14 @@ function liveDialAllowed({ manual }) {
 async function dial({ phone, lead, seller, contact, scriptVariant, rng, startedAt, manual = false }) {
   const userData = callContext({ lead, seller, contact, scriptVariant });
 
-  if (bolna.isConfigured() && liveDialAllowed({ manual })) {
-    const result = await bolna.placeCall({ phone, userData });
+  if (voice.isConfigured() && liveDialAllowed({ manual })) {
+    const result = await voice.placeCall({ phone, userData });
     if (!result.ok) {
-      return { error: result.error, provider: 'bolna' };
+      return { error: result.error, provider: 'live' };
     }
     return {
-      provider: 'bolna',
-      bolna_call_id: result.callId,
+      provider: 'live',
+      provider_call_id: result.callId,
       // A real call is genuinely queued until the provider reports otherwise;
       // the webhook or the poller moves it on.
       status: 'queued',
@@ -438,7 +439,7 @@ const handlers = {
       return { status: 403, payload: { error: `Your role (${req.user.role}) is not permitted to place calls.` } };
     }
 
-    const phone = bolna.normalizePhone(body?.phone_number);
+    const phone = voice.normalizePhone(body?.phone_number);
     if (!phone) {
       return { status: 400, payload: { error: 'Enter a valid 10-digit Indian mobile number.' } };
     }
@@ -536,7 +537,7 @@ const handlers = {
         status: started.status,
         provider: started.provider,
         phone,
-        bolna_call_id: started.bolna_call_id || null
+        provider_call_id: started.provider_call_id || null
       }
     };
   },
@@ -635,7 +636,7 @@ const handlers = {
     return { status: 200, payload: { analysed: n } };
   },
 
-  async bolnaCall(req, body) {
+  async placeCall(req, body) {
     if (!hasCap(req.user.role, CAPS.DIAL)) {
       return { status: 403, payload: { error: `Your role (${req.user.role}) is not permitted to place calls.` } };
     }
@@ -671,7 +672,7 @@ const handlers = {
       };
     }
 
-    const phone = bolna.normalizePhone(seller.contact_phone);
+    const phone = voice.normalizePhone(seller.contact_phone);
     if (!phone) {
       return { status: 400, payload: { error: `No usable phone number on ${seller.display_name}.` } };
     }
@@ -740,14 +741,14 @@ const handlers = {
         id: runId,
         status: started.status,
         provider: started.provider,
-        bolna_call_id: started.bolna_call_id || null,
+        provider_call_id: started.provider_call_id || null,
         lead_id: leadId,
         started_at: startedAt
       }
     };
   },
 
-  async bolnaFetchTranscript(req, body) {
+  async fetchTranscript(req, body) {
     const runId = body?.agent_run_id;
     if (!runId) return { status: 400, payload: { error: 'agent_run_id is required' } };
     const run = await getRow('AgentRun', runId);
@@ -755,12 +756,12 @@ const handlers = {
 
     // A provider-backed call is pulled live; this is the path that turns a
     // queued real call into a transcript without waiting for the webhook.
-    if (run.bolna_call_id && bolna.isConfigured()) {
-      const execution = await bolna.fetchExecution(run.bolna_call_id);
+    if (run.provider_call_id && voice.isConfigured()) {
+      const execution = await voice.fetchExecution(run.provider_call_id);
       if (!execution) {
-        return { status: 200, payload: { error: 'Bolna has not published this call yet — try again shortly.', transcript: run.transcript || [] } };
+        return { status: 200, payload: { error: 'The call has not been published yet — try again shortly.', transcript: run.transcript || [] } };
       }
-      const read = bolna.readExecution(execution);
+      const read = voice.readExecution(execution);
       const patch = {
         call_status: read.rawStatus || run.call_status,
         status: read.status,

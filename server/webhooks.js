@@ -2,13 +2,13 @@
  * Provider webhooks. Public by design — authenticated by a shared secret in the
  * request, not by a user session.
  *
- * Bolna retries aggressively on any non-2xx, so every path here answers 200
- * even on failure; the body carries whether the event actually matched.
+ * The provider retries aggressively on any non-2xx, so every path here answers
+ * 200 even on failure; the body carries whether the event actually matched.
  */
 
 import express from 'express';
 import { q, rowToObject, tableFor } from './db.js';
-import * as bolna from './bolna.js';
+import * as voice from './voice.js';
 
 const table = (entity) => tableFor(entity);
 
@@ -32,7 +32,7 @@ async function insertRow(entity, payload) {
 async function findByCallId(callId) {
   const { rows } = await q(
     `SELECT * FROM ${table('AgentRun')} WHERE data @> $1::jsonb LIMIT 1`,
-    [JSON.stringify({ bolna_call_id: String(callId) })]
+    [JSON.stringify({ provider_call_id: String(callId) })]
   );
   return rows[0] ? rowToObject(rows[0]) : null;
 }
@@ -48,10 +48,11 @@ async function findByPhone(phone) {
 
 export const router = express.Router();
 
-router.post('/bolna', async (req, res) => {
+router.post('/voice', async (req, res) => {
   try {
-    const { webhookSecret } = bolna.bolnaConfig();
+    const { webhookSecret } = voice.providerConfig();
     const auth = req.get('authorization') || '';
+    // Header names are dictated by the provider, so they stay as sent.
     const provided =
       req.get('x-bolna-signature') ||
       req.get('x-bolna-secret') ||
@@ -61,7 +62,7 @@ router.post('/bolna', async (req, res) => {
     if (!signatureVerified) {
       // Recorded on the run rather than rejected: dropping the event would lose
       // the transcript entirely, and the console shows the unverified state.
-      console.warn('[webhook] Bolna signature mismatch — processing with signature_verified=false');
+      console.warn('[webhook] voice signature mismatch — processing with signature_verified=false');
     }
 
     const body = req.body || {};
@@ -69,7 +70,7 @@ router.post('/bolna', async (req, res) => {
 
     let run = callId ? await findByCallId(callId) : null;
     if (!run) {
-      const phone = bolna.last10(body.recipient_phone_number || body.phone_number || body.to || '');
+      const phone = voice.last10(body.recipient_phone_number || body.phone_number || body.to || '');
       if (phone) run = await findByPhone(phone);
     }
     if (!run) {
@@ -77,7 +78,7 @@ router.post('/bolna', async (req, res) => {
       return res.json({ received: true, matched: false });
     }
 
-    const read = bolna.readExecution(body);
+    const read = voice.readExecution(body);
     const patch = {
       call_status: read.rawStatus ? String(read.rawStatus) : run.call_status,
       status: read.status,
@@ -124,7 +125,7 @@ router.post('/bolna', async (req, res) => {
 
     return res.json({ received: true, agent_run_id: run.id, status: read.status, signature_verified: signatureVerified });
   } catch (err) {
-    console.error('[webhook] bolna handler failed', err.message);
+    console.error('[webhook] voice handler failed', err.message);
     return res.json({ received: true, error: err.message });
   }
 });

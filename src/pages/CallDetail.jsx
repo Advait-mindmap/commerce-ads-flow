@@ -99,7 +99,7 @@ export default function CallDetail() {
   const pullLatest = async () => {
     setBusy(true);
     toast({ title: 'Pulling latest transcript…' });
-    const res = await api.functions.invoke('bolnaFetchTranscript', { agent_run_id: run.id }).catch((e) => ({ data: { error: e.message } }));
+    const res = await api.functions.invoke('fetchTranscript', { agent_run_id: run.id }).catch((e) => ({ data: { error: e.message } }));
     const data = res && res.data ? res.data : res;
     setBusy(false);
     if (data && data.error) return toast({ title: 'Could not pull transcript', description: data.error, variant: 'destructive' });

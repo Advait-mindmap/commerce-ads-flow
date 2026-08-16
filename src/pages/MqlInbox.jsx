@@ -62,7 +62,7 @@ export default function MqlInbox() {
     setBusy(true);
     toast({ title: `Queueing ${ids.length} lead(s)…` });
 
-    // Routed through bolnaCall so every dial passes the suppression gate. The
+    // Routed through placeCall so every dial passes the suppression gate. The
     // previous version wrote AgentRun rows straight to the database, which
     // skipped the gate entirely and left the calls stuck in "queued" forever.
     const summary = await dialSequentially(ids.map((id) => ({ id })), () => {});
