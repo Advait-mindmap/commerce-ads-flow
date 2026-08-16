@@ -20,6 +20,7 @@ export default function CallDetail() {
   const [seller, setSeller] = useState(null);
   const [contact, setContact] = useState(null);
   const [lead, setLead] = useState(null);
+  const [sequence, setSequence] = useState(null);
   const [busy, setBusy] = useState(false);
 
   const [visibleCount, setVisibleCount] = useState(0);
@@ -33,7 +34,12 @@ export default function CallDetail() {
     setRun(r);
     setVisibleCount((r.transcript || []).length);
     if (r.seller_id) setSeller(await api.entities.Seller.get(r.seller_id).catch(() => null));
-    if (r.lead_id) setLead(await api.entities.Lead.get(r.lead_id).catch(() => null));
+    if (r.lead_id) {
+      setLead(await api.entities.Lead.get(r.lead_id).catch(() => null));
+      // The card shows the real enrolment, so it has to be read, not assumed.
+      const seqs = await api.entities.Sequence.filter({ lead_id: r.lead_id }).catch(() => []);
+      setSequence((seqs || []).find((x) => x.status === 'active') || (seqs || [])[0] || null);
+    }
     if (r.seller_id) {
       const cs = await api.entities.Contact.filter({ seller_id: r.seller_id });
       setContact(cs.find((c) => c.is_primary) || cs[0] || null);
@@ -178,16 +184,63 @@ export default function CallDetail() {
           <NextActionCard
             run={run}
             lead={lead}
-            onAssign={async () => {
-              await logAudit({
-                action: 'escalation_assigned',
-                entity_type: 'AgentRun',
-                entity_id: run.id,
-                entity_name: run.seller_name,
-                summary: `Escalation assigned to ${(run.escalation && run.escalation.assigned_rep) || 'next available rep'}`
-              });
-              toast({ title: 'Escalation assigned', description: (run.escalation && run.escalation.assigned_rep) || 'Next available rep' });
+            sequence={sequence}
+            busy={busy}
+            onAssign={async (member) => {
+              // Persist the assignment. Logging that a rep was assigned while
+              // leaving the record unowned is what made this button a no-op.
+              setBusy(true);
+              try {
+                const escalation = { ...(run.escalation || {}), assigned_rep: member.name, assigned_rep_id: member.id };
+                await api.entities.AgentRun.update(run.id, { escalation });
+                if (lead?.id) {
+                  await api.entities.Lead.update(lead.id, { assigned_rep_name: member.name, assigned_rep_id: member.id });
+                  setLead({ ...lead, assigned_rep_name: member.name, assigned_rep_id: member.id });
+                }
+                setRun({ ...run, escalation });
+                await logAudit({
+                  action: 'escalation_assigned',
+                  entity_type: 'AgentRun',
+                  entity_id: run.id,
+                  entity_name: run.seller_name,
+                  summary: `Escalation assigned to ${member.name}`
+                });
+                toast({ title: 'Assigned', description: `${run.seller_name} → ${member.name}` });
+              } catch (err) {
+                toast({ title: 'Could not assign', description: err.message, variant: 'destructive' });
+              } finally {
+                setBusy(false);
+              }
             }}
+            onAddToSequence={lead?.id ? async () => {
+              setBusy(true);
+              try {
+                const created = await api.entities.Sequence.create({
+                  seller_id: run.seller_id,
+                  seller_name: run.seller_name,
+                  lead_id: lead.id,
+                  sequence_type: 'nurture',
+                  channel: 'whatsapp',
+                  step_number: 1,
+                  total_steps: 4,
+                  status: 'active',
+                  next_send_at: new Date(Date.now() + 86400000).toISOString()
+                });
+                setSequence(created);
+                await logAudit({
+                  action: 'lead_added_to_sequence',
+                  entity_type: 'Lead',
+                  entity_id: lead.id,
+                  entity_name: run.seller_name,
+                  summary: 'Enrolled in a 4-step WhatsApp nurture sequence from Call Detail'
+                });
+                toast({ title: 'Added to nurture sequence', description: `${run.seller_name} · step 1 of 4` });
+              } catch (err) {
+                toast({ title: 'Could not add to sequence', description: err.message, variant: 'destructive' });
+              } finally {
+                setBusy(false);
+              }
+            } : undefined}
           />
         </div>
       </div>

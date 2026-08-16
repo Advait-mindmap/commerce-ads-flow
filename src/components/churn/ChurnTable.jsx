@@ -66,7 +66,7 @@ export default function ChurnTable({ campaigns, onAssign }) {
                 {open && (
                   <tr>
                     <td colSpan={HEADERS.length} className="p-0">
-                      <ChurnExpansion campaign={c} onAssign={() => onAssign(c)} />
+                      <ChurnExpansion campaign={c} onAssign={(member) => onAssign(c, member)} />
                     </td>
                   </tr>
                 )}

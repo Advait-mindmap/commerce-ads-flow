@@ -18,7 +18,10 @@ export default function AssigneePicker({
   disabled = false,
   size = 'sm',
   variant = 'outline',
-  label = 'Assign to'
+  label = 'Assign to',
+  // Narrows the roster to the roles that can actually own this work. Offering
+  // an analyst as the owner of a retention call is worse than offering nobody.
+  roles = null
 }) {
   const [members, setMembers] = useState(null);
   const [busy, setBusy] = useState(false);
@@ -26,9 +29,12 @@ export default function AssigneePicker({
 
   useEffect(() => {
     api.auth.team()
-      .then((res) => setMembers(res.members || []))
+      .then((res) => {
+        const all = res.members || [];
+        setMembers(roles ? all.filter((m) => roles.includes(m.role)) : all);
+      })
       .catch(() => setMembers([]));
-  }, []);
+  }, [roles]);
 
   const assign = async (member) => {
     setBusy(true);

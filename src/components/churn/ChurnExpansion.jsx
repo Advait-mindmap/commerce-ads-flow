@@ -1,6 +1,6 @@
 import React from 'react';
 import { ResponsiveContainer, LineChart, Line, XAxis, YAxis, Tooltip, CartesianGrid } from 'recharts';
-import { Button } from '@/components/ui/button';
+import AssigneePicker from '@/components/common/AssigneePicker';
 import { pct } from '@/lib/format';
 
 export default function ChurnExpansion({ campaign, onAssign }) {
@@ -46,7 +46,16 @@ export default function ChurnExpansion({ campaign, onAssign }) {
         <p className="text-[13px] text-slate-800">
           {campaign.recommended_intervention || 'No intervention recommended for this campaign.'}
         </p>
-        <Button size="sm" variant="outline" className="h-8 text-xs mt-3 bg-white" onClick={onAssign}>Assign to rep</Button>
+        {/* An intervention needs an owner by name — the old button assigned
+            it to nobody and only logged that it had happened. */}
+        <div className="mt-3">
+          <AssigneePicker
+            currentName={campaign.assigned_rep_name}
+            onAssign={onAssign}
+            label="Assign to rep"
+            roles={['ae']}
+          />
+        </div>
       </div>
     </div>
   );

@@ -53,16 +53,53 @@ export default function ChurnConsole() {
   const atRisk = [...red, ...amber].reduce((a, c) => a + (c.monthly_budget || 0), 0);
   const rows = campaigns.slice().sort((a, b) => (b.churn_p30 || 0) - (a.churn_p30 || 0));
 
-  const assign = async (c) => {
-    await logAudit({
-      action: 'churn_intervention_assigned',
-      entity_type: 'Campaign',
-      entity_id: c.id,
-      entity_name: c.seller_name,
-      summary: `Intervention assigned for ${c.churn_band} band campaign`
-    });
-    setInterventions((n) => n + 1);
-    toast({ title: 'Intervention assigned', description: c.seller_name });
+  const assign = async (c, member) => {
+    try {
+      /*
+       * Write the owner onto the campaign, and record the check-in the card
+       * recommends. Previously this only wrote an audit line, so the
+       * intervention had no owner and nothing to do — the button reported work
+       * that did not exist.
+       */
+      const dueAt = new Date(Date.now() + 48 * 3600000).toISOString();
+      await api.entities.Campaign.update(c.id, {
+        assigned_rep_name: member.name,
+        assigned_rep_id: member.id,
+        intervention_status: 'assigned',
+        intervention_due_at: dueAt
+      });
+
+      await api.entities.Interaction.create({
+        seller_id: c.seller_id,
+        seller_name: c.seller_name,
+        campaign_id: c.id,
+        channel: 'task',
+        actor_type: 'human',
+        actor_name: member.name,
+        direction: 'internal',
+        outcome: 'scheduled',
+        disposition: 'retention_check_in',
+        summary: `Retention check-in due within 48 hours — ${c.churn_band} band, ROAS ${c.roas ?? '—'}`,
+        started_at: new Date().toISOString(),
+        due_at: dueAt
+      });
+
+      await logAudit({
+        action: 'churn_intervention_assigned',
+        entity_type: 'Campaign',
+        entity_id: c.id,
+        entity_name: c.seller_name,
+        summary: `Intervention assigned to ${member.name} for ${c.churn_band} band campaign, due in 48 hours`
+      });
+
+      setCampaigns((list) => list.map((x) => (
+        x.id === c.id ? { ...x, assigned_rep_name: member.name, assigned_rep_id: member.id, intervention_status: 'assigned' } : x
+      )));
+      setInterventions((n) => n + 1);
+      toast({ title: `Assigned to ${member.name}`, description: `${c.seller_name} · check-in due in 48 hours` });
+    } catch (err) {
+      toast({ title: 'Could not assign', description: err.message, variant: 'destructive' });
+    }
   };
 
   return (
