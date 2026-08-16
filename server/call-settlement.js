@@ -55,6 +55,22 @@ async function leastLoadedRep() {
   return entries.length ? entries.sort((a, b) => a[1] - b[1])[0][0] : 'Unassigned';
 }
 
+/**
+ * Distributes turns across the call's real duration, weighted by how much was
+ * said in each. Providers rarely timestamp individual turns, and a transcript
+ * with no timing makes the replay control meaningless.
+ */
+export function spreadTurnsOver(turns, totalSec) {
+  const weights = turns.map((t) => Math.max(1, String(t.content || '').length));
+  const total = weights.reduce((a, w) => a + w, 0) || 1;
+  let elapsed = 0;
+  return turns.map((t, i) => {
+    const at = Math.round(elapsed);
+    elapsed += (weights[i] / total) * totalSec;
+    return { ...t, timestamp_sec: at, sentiment: t.sentiment ?? 0 };
+  });
+}
+
 /** Outcome derived from what was actually said, not from status alone. */
 export function deriveOutcome(extracted, transcript, escalated) {
   if (!transcript || transcript.length === 0) return 'no_answer';
@@ -113,7 +129,28 @@ export async function settleRun(run, read, { source = 'webhook', signatureVerifi
     return { settled: false, reason: 'already settled', status: run.status };
   }
 
-  const transcript = read.transcript.length ? read.transcript : (run.transcript || []);
+  const rawTranscript = read.transcript.length ? read.transcript : (run.transcript || []);
+
+  /*
+   * The provider closes a call before it finalises the duration, so a
+   * completion event routinely arrives reporting zero seconds alongside a full
+   * transcript. Falling back to the wall clock between placing the call and
+   * this event gives an accurate figure immediately, instead of showing 00:00
+   * against a real conversation.
+   */
+  const wallClockSec = run.started_at
+    ? Math.max(0, Math.round((Date.now() - new Date(run.started_at).getTime()) / 1000))
+    : 0;
+  const durationSec = read.duration_sec > 0
+    ? read.duration_sec
+    : (rawTranscript.length ? wallClockSec : 0);
+
+  // With a real duration known, spread the turns across it so the replay on
+  // Call Detail runs to the length the call actually took.
+  const transcript = durationSec > 0 && rawTranscript.length
+    ? spreadTurnsOver(rawTranscript, durationSec)
+    : rawTranscript;
+
   const extracted = transcript.length ? extractFromTranscript(transcript) : null;
 
   let escalation = run.escalation;
@@ -137,7 +174,7 @@ export async function settleRun(run, read, { source = 'webhook', signatureVerifi
     call_status: read.rawStatus,
     outcome,
     ended_at: new Date().toISOString(),
-    duration_sec: read.duration_sec || 0,
+    duration_sec: durationSec,
     cost_usd: read.cost_usd || run.cost_usd || 0,
     recording_url: read.recording_url || run.recording_url || null,
     transcript,
@@ -164,7 +201,7 @@ export async function settleRun(run, read, { source = 'webhook', signatureVerifi
       direction: 'outbound',
       outcome,
       disposition: outcome,
-      duration_sec: read.duration_sec || 0,
+      duration_sec: durationSec,
       summary: `Call ${outcome.replace(/_/g, ' ')} with ${transcript.length} conversation turns.`,
       objections: (extracted?.objections || []).map((o) => o.objection_type),
       sentiment_score: extracted?.overall_sentiment ?? 0,
