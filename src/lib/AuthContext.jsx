@@ -1,5 +1,5 @@
 import React, { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react';
-import { base44 } from '@/api/base44Client';
+import { api } from '@/api/client';
 
 const AuthContext = createContext(null);
 
@@ -21,7 +21,7 @@ export const AuthProvider = ({ children }) => {
   const checkUserAuth = useCallback(async () => {
     setIsLoadingAuth(true);
     try {
-      const me = await base44.auth.me();
+      const me = await api.auth.me();
       setUser(me);
       setIsAuthenticated(true);
       setAuthError(null);
@@ -39,7 +39,7 @@ export const AuthProvider = ({ children }) => {
   useEffect(() => { checkUserAuth(); }, [checkUserAuth]);
 
   const logout = useCallback(async (shouldRedirect = true) => {
-    await base44.auth.logout();
+    await api.auth.logout();
     setUser(null);
     setIsAuthenticated(false);
     setAuthChecked(true);

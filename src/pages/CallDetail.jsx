@@ -1,6 +1,6 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { useParams } from 'react-router-dom';
-import { base44 } from '@/api/base44Client';
+import { api } from '@/api/client';
 import { useToast } from '@/components/ui/use-toast';
 import Breadcrumbs from '@/components/common/Breadcrumbs';
 import { PanelSkeleton } from '@/components/common/Skeletons';
@@ -29,13 +29,13 @@ export default function CallDetail() {
   const timerRef = useRef(null);
 
   const load = async () => {
-    const r = await base44.entities.AgentRun.get(id);
+    const r = await api.entities.AgentRun.get(id);
     setRun(r);
     setVisibleCount((r.transcript || []).length);
-    if (r.seller_id) setSeller(await base44.entities.Seller.get(r.seller_id).catch(() => null));
-    if (r.lead_id) setLead(await base44.entities.Lead.get(r.lead_id).catch(() => null));
+    if (r.seller_id) setSeller(await api.entities.Seller.get(r.seller_id).catch(() => null));
+    if (r.lead_id) setLead(await api.entities.Lead.get(r.lead_id).catch(() => null));
     if (r.seller_id) {
-      const cs = await base44.entities.Contact.filter({ seller_id: r.seller_id });
+      const cs = await api.entities.Contact.filter({ seller_id: r.seller_id });
       setContact(cs.find((c) => c.is_primary) || cs[0] || null);
     }
   };
@@ -53,7 +53,7 @@ export default function CallDetail() {
     const started = new Date(run.started_at || Date.now()).getTime();
     const deadline = started + 10 * 60 * 1000;
     const poller = setInterval(async () => {
-      const fresh = await base44.entities.AgentRun.get(id).catch(() => null);
+      const fresh = await api.entities.AgentRun.get(id).catch(() => null);
       if (!fresh) return;
       setRun(fresh);
       const nextStatus = fresh.status || fresh.outcome || 'unknown';
@@ -99,7 +99,7 @@ export default function CallDetail() {
   const pullLatest = async () => {
     setBusy(true);
     toast({ title: 'Pulling latest transcript…' });
-    const res = await base44.functions.invoke('bolnaFetchTranscript', { agent_run_id: run.id }).catch((e) => ({ data: { error: e.message } }));
+    const res = await api.functions.invoke('bolnaFetchTranscript', { agent_run_id: run.id }).catch((e) => ({ data: { error: e.message } }));
     const data = res && res.data ? res.data : res;
     setBusy(false);
     if (data && data.error) return toast({ title: 'Could not pull transcript', description: data.error, variant: 'destructive' });
@@ -110,7 +110,7 @@ export default function CallDetail() {
   const extract = async () => {
     setBusy(true);
     toast({ title: 'Extracting qualification…' });
-    const res = await base44.functions.invoke('extractQualification', { agent_run_id: run.id }).catch((e) => ({ data: { error: e.message } }));
+    const res = await api.functions.invoke('extractQualification', { agent_run_id: run.id }).catch((e) => ({ data: { error: e.message } }));
     const data = res && res.data ? res.data : res;
     setBusy(false);
     if (data && data.error) return toast({ title: 'Extraction failed', description: data.error, variant: 'destructive' });
@@ -129,7 +129,7 @@ export default function CallDetail() {
     const before = (run.qualification || {})[key];
     const qualification = { ...(run.qualification || {}), [key]: value };
     setRun({ ...run, qualification });
-    await base44.entities.AgentRun.update(run.id, { qualification });
+    await api.entities.AgentRun.update(run.id, { qualification });
     await logAudit({
       action: 'qualification_field_edited',
       entity_type: 'AgentRun',

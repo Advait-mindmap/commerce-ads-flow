@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { base44 } from '@/api/base44Client';
+import { api } from '@/api/client';
 import SellerFilters from '@/components/sellers/SellerFilters';
 import SellerTable from '@/components/sellers/SellerTable';
 import ExportCsvButton from '@/components/common/ExportCsvButton';
@@ -25,7 +25,7 @@ export default function Sellers() {
   const [sellers, setSellers] = useState(null);
   const [filters, setFilters] = useState(DEFAULTS);
 
-  useEffect(() => { base44.entities.Seller.list('-gmv_30d', 500).then(setSellers); }, []);
+  useEffect(() => { api.entities.Seller.list('-gmv_30d', 500).then(setSellers); }, []);
 
   const rows = useMemo(() => {
     if (!sellers) return [];

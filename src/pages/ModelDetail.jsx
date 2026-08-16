@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { useParams } from 'react-router-dom';
-import { base44 } from '@/api/base44Client';
+import { api } from '@/api/client';
 import Breadcrumbs from '@/components/common/Breadcrumbs';
 import { PanelSkeleton } from '@/components/common/Skeletons';
 import FeatureImportanceChart from '@/components/models/FeatureImportanceChart';
@@ -20,7 +20,7 @@ export default function ModelDetail() {
   const [versions, setVersions] = useState(null);
 
   useEffect(() => {
-    base44.entities.ModelVersion.filter({ model_key: key }, '-trained_at', 100).then(setVersions);
+    api.entities.ModelVersion.filter({ model_key: key }, '-trained_at', 100).then(setVersions);
   }, [key]);
 
   if (!versions) {

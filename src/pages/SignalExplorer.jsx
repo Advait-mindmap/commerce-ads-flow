@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { base44 } from '@/api/base44Client';
+import { api } from '@/api/client';
 import { useToast } from '@/components/ui/use-toast';
 import SignalFilters from '@/components/signals/SignalFilters';
 import SignalTable from '@/components/signals/SignalTable';
@@ -35,7 +35,7 @@ export default function SignalExplorer() {
   const { user, hasCap } = useAuth();
 
   useEffect(() => {
-    base44.entities.Seller.list(null, 500).then(setSellers);
+    api.entities.Seller.list(null, 500).then(setSellers);
   }, []);
 
   const active = useMemo(() => JSON.stringify(filters) !== JSON.stringify(DEFAULTS), [filters]);
@@ -101,9 +101,9 @@ export default function SignalExplorer() {
             for (const sellerId of selected) {
               const seller = sellers.find((s) => s.id === sellerId);
               if (!seller) continue;
-              let lead = (await base44.entities.Lead.filter({ seller_id: sellerId }))[0] || null;
+              let lead = (await api.entities.Lead.filter({ seller_id: sellerId }))[0] || null;
               if (!lead) {
-                lead = await base44.entities.Lead.create({
+                lead = await api.entities.Lead.create({
                   seller_id: seller.id,
                   seller_name: seller.display_name,
                   category: seller.category,
@@ -133,7 +133,7 @@ export default function SignalExplorer() {
             }
 
             if (action === 'sequence') {
-              await Promise.all(leads.map((lead) => base44.entities.Sequence.create({
+              await Promise.all(leads.map((lead) => api.entities.Sequence.create({
                 seller_id: lead.seller_id,
                 seller_name: lead.seller_name,
                 lead_id: lead.id,
@@ -156,7 +156,7 @@ export default function SignalExplorer() {
 
             if (action === 'assign') {
               const repName = user?.full_name || user?.email;
-              await base44.entities.Lead.bulkUpdate(leads.map((lead) => ({
+              await api.entities.Lead.bulkUpdate(leads.map((lead) => ({
                 id: lead.id,
                 assigned_rep_name: repName,
                 assigned_rep_id: user?.id

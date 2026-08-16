@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { base44 } from '@/api/base44Client';
+import { api } from '@/api/client';
 import { useToast } from '@/components/ui/use-toast';
 import KpiTile from '@/components/command/KpiTile';
 import ChurnTable from '@/components/churn/ChurnTable';
@@ -29,8 +29,8 @@ export default function ChurnConsole() {
 
   useEffect(() => {
     Promise.all([
-      base44.entities.Campaign.list(null, 500),
-      base44.entities.Interaction.list('-started_at', 500)
+      api.entities.Campaign.list(null, 500),
+      api.entities.Interaction.list('-started_at', 500)
     ]).then(([c, i]) => {
       setCampaigns(c);
       const since = Date.now() - WEEK;

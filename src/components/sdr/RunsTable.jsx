@@ -1,15 +1,24 @@
 import React, { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
+import { CalendarCheck } from 'lucide-react';
 import OutcomeBadge from '@/components/common/OutcomeBadge';
 import SentimentBar from '@/components/common/SentimentBar';
-import { mmss, timeOnly, inrFull } from '@/lib/format';
+import { mmss, timeOnly, inrFull, dateTime } from '@/lib/format';
 import { useConfig } from '@/lib/ConfigContext';
 
-const HEADERS = ['Time', 'Seller', 'Agent/Rep', 'Channel', 'Duration', 'Outcome', 'Sentiment', 'Script', 'Cost', ''];
+const HEADERS = ['Time', 'Seller', 'Agent/Rep', 'Channel', 'Duration', 'Outcome', 'Meeting', 'Sentiment', 'Script', 'Cost', ''];
 
-export default function RunsTable({ runs }) {
+export default function RunsTable({ runs, leadsById = {} }) {
   const [tick, setTick] = useState(0);
   const { usdToInr } = useConfig();
+
+  // A meeting lives on the lead, not the call, so it is resolved through the
+  // lead the run belongs to.
+  const meetingFor = (run) => {
+    const lead = run.lead_id ? leadsById[run.lead_id] : null;
+    if (!lead || lead.meeting_status !== 'booked') return null;
+    return lead.meeting_scheduled_at || null;
+  };
 
   useEffect(() => {
     const id = setInterval(() => setTick((t) => t + 1), 1000);
@@ -39,13 +48,32 @@ export default function RunsTable({ runs }) {
                   {live && <span className="inline-block w-1.5 h-1.5 rounded-full bg-red-600 animate-pulse mr-1.5 align-middle" />}
                   {timeOnly(r.started_at)}
                 </td>
-                <td className="px-3 py-2 text-[13px] text-slate-900 font-medium max-w-[180px] truncate">{r.seller_name}</td>
+                {/* Opens everything known about this seller's outreach. */}
+                <td className="px-3 py-2 text-[13px] font-medium max-w-[180px] truncate">
+                  {r.seller_id ? (
+                    <Link to={`/sdr/sellers/${r.seller_id}`} className="text-slate-900 hover:text-blue-800 hover:underline">
+                      {r.seller_name}
+                    </Link>
+                  ) : (
+                    <span className="text-slate-900">{r.seller_name}</span>
+                  )}
+                </td>
                 <td className="px-3 py-2 text-[13px] text-slate-600">
                   {r.escalation && r.escalation.assigned_rep ? r.escalation.assigned_rep : 'AI SDR'}
                 </td>
                 <td className="px-3 py-2 text-xs text-slate-600">{(r.channel || '').replace(/_/g, ' ')}</td>
                 <td className="px-3 py-2 text-[13px] text-slate-700 font-mono tabular-nums">{mmss(liveDuration)}</td>
                 <td className="px-3 py-2">{live ? <span className="text-[11px] text-slate-500">in progress</span> : <OutcomeBadge outcome={r.outcome} />}</td>
+                {/* Meetings booked off this call, so the floor can see outcomes
+                    without opening each record. */}
+                <td className="px-3 py-2 text-[11px] whitespace-nowrap">
+                  {meetingFor(r) ? (
+                    <span className="inline-flex items-center gap-1 text-emerald-700">
+                      <CalendarCheck className="w-3.5 h-3.5" />
+                      <span className="tabular-nums">{dateTime(meetingFor(r))}</span>
+                    </span>
+                  ) : <span className="text-slate-400">—</span>}
+                </td>
                 <td className="px-3 py-2"><SentimentBar value={r.overall_sentiment || 0} /></td>
                 <td className="px-3 py-2 text-xs text-slate-600">{r.script_variant || '—'}</td>
                 <td className="px-3 py-2 text-[13px] text-slate-700 tabular-nums">{inrFull(usdToInr(r.cost_usd))}</td>
@@ -56,7 +84,7 @@ export default function RunsTable({ runs }) {
             );
           })}
           {runs.length === 0 && (
-            <tr><td colSpan={10} className="px-4 py-10 text-center text-xs text-slate-500">No calls yet today.</td></tr>
+            <tr><td colSpan={11} className="px-4 py-10 text-center text-xs text-slate-500">No calls yet today.</td></tr>
           )}
         </tbody>
       </table>

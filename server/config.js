@@ -8,6 +8,7 @@
  */
 
 import express from 'express';
+import * as bolna from './bolna.js';
 
 // Frankfurter is the ECB's published reference rates — no API key, no quota.
 const FX_ENDPOINT = 'https://api.frankfurter.app/latest?from=USD&to=INR';
@@ -43,10 +44,23 @@ async function refreshFx() {
   }
 }
 
+// Cached provider health. Probed on boot with a GET — it never places a call.
+let voice = { configured: false, reachable: false, detail: 'not probed' };
+
+async function refreshVoice() {
+  try {
+    voice = await bolna.probe();
+    console.log(`[config] voice provider: ${voice.configured ? (voice.reachable ? 'reachable' : 'unreachable') : 'not configured'} — ${voice.detail}`);
+  } catch (err) {
+    voice = { configured: bolna.isConfigured(), reachable: false, detail: err.message };
+  }
+}
+
 export async function startConfig() {
-  await refreshFx();
+  await Promise.all([refreshFx(), refreshVoice()]);
   timer = setInterval(refreshFx, FX_REFRESH_MS);
   timer.unref?.();
+  setInterval(refreshVoice, FX_REFRESH_MS).unref?.();
 }
 
 export const getFx = () => fx;
@@ -60,7 +74,14 @@ router.get('/', (_req, res) => {
     // are real sellers.
     data_mode: process.env.SEED_ON_BOOT === 'false' ? 'live' : 'synthetic',
     // Calls are generated locally until voice credentials are configured.
-    voice_provider: process.env.BOLNA_API_KEY && process.env.BOLNA_API_KEY !== 'change-me' ? 'bolna' : 'simulated',
+    voice_provider: bolna.isConfigured() ? 'bolna' : 'simulated',
+    voice: {
+      ...voice,
+      // Which dials are permitted to actually ring a phone. Defaults to manual
+      // only, because seeded seller numbers are generated and would otherwise
+      // cold-call real people.
+      live_dial_scope: (process.env.LIVE_DIAL_SCOPE || 'manual').toLowerCase()
+    },
     calling_window: {
       enforced: process.env.CALL_WINDOW_ENFORCED !== 'false',
       start_hour_ist: 9,

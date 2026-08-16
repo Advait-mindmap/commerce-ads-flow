@@ -107,6 +107,29 @@ router.get('/me', requireAuth, (req, res) => res.json(publicUser(req.user)));
 
 router.get('/roles', (_req, res) => ok(res, { roles: ROLE_KEYS.map((k) => publicRole(k)) }));
 
+/**
+ * Assignable team members. Backs the "assign to" pickers, which previously
+ * could only ever assign to the signed-in user.
+ */
+router.get('/team', requireAuth, async (_req, res) => {
+  const { rows } = await q(
+    `SELECT id, email, full_name, role FROM users WHERE status = 'active' ORDER BY full_name`
+  );
+  // Only roles that actually carry a lead queue are worth offering.
+  const assignable = ['admin', 'revenue_lead', 'sales_manager', 'ae', 'sdr'];
+  return ok(res, {
+    members: rows
+      .filter((u) => assignable.includes(u.role))
+      .map((u) => ({
+        id: u.id,
+        name: u.full_name || u.email,
+        email: u.email,
+        role: u.role,
+        role_label: getRole(u.role).label
+      }))
+  });
+});
+
 router.get('/demo-users', (_req, res) => {
   if (!ALLOW_DEMO_LOGIN) return ok(res, { enabled: false, users: [] });
   return ok(res, { enabled: true, password: 'Demo@1234', users: demoRoster() });

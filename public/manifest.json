@@ -1,0 +1,17 @@
+{
+  "name": "InSales OS",
+  "short_name": "InSales",
+  "description": "Ad sales platform for e-commerce marketplaces.",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#F8FAFC",
+  "theme_color": "#1E40AF",
+  "icons": [
+    {
+      "src": "/icon.svg",
+      "type": "image/svg+xml",
+      "sizes": "any",
+      "purpose": "any maskable"
+    }
+  ]
+}

@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { base44 } from '@/api/base44Client';
+import { api } from '@/api/client';
 import ModelCard from '@/components/models/ModelCard';
 import { CardGridSkeleton } from '@/components/common/Skeletons';
 import EmptyState from '@/components/common/EmptyState';
@@ -7,7 +7,7 @@ import EmptyState from '@/components/common/EmptyState';
 export default function Models() {
   const [versions, setVersions] = useState(null);
 
-  useEffect(() => { base44.entities.ModelVersion.list('-trained_at', 200).then(setVersions); }, []);
+  useEffect(() => { api.entities.ModelVersion.list('-trained_at', 200).then(setVersions); }, []);
 
   if (!versions) {
     return (

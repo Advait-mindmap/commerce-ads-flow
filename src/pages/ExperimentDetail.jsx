@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { useParams } from 'react-router-dom';
-import { base44 } from '@/api/base44Client';
+import { api } from '@/api/client';
 import Breadcrumbs from '@/components/common/Breadcrumbs';
 import { PanelSkeleton } from '@/components/common/Skeletons';
 import ArmTable from '@/components/experiments/ArmTable';
@@ -16,8 +16,8 @@ export default function ExperimentDetail() {
 
   useEffect(() => {
     (async () => {
-      const exp = await base44.entities.Experiment.get(id);
-      const logs = await base44.entities.AuditLog.filter({ entity_type: 'Experiment', entity_id: id }, '-timestamp', 50);
+      const exp = await api.entities.Experiment.get(id);
+      const logs = await api.entities.AuditLog.filter({ entity_type: 'Experiment', entity_id: id }, '-timestamp', 50);
       setData({ exp, logs });
     })();
   }, [id]);

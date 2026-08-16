@@ -1,5 +1,6 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { base44 } from '@/api/base44Client';
+import { Phone } from 'lucide-react';
+import { api } from '@/api/client';
 import { Button } from '@/components/ui/button';
 import { useToast } from '@/components/ui/use-toast';
 import SdrStatStrip from '@/components/sdr/SdrStatStrip';
@@ -9,6 +10,7 @@ import OutcomeDonut from '@/components/sdr/OutcomeDonut';
 import TopObjections from '@/components/sdr/TopObjections';
 import OpenEscalations from '@/components/sdr/OpenEscalations';
 import BatchDialModal from '@/components/sdr/BatchDialModal';
+import StartDialModal from '@/components/sdr/StartDialModal';
 import { inrFull } from '@/lib/format';
 import { dialSequentially } from '@/lib/dialer';
 import { useAuth } from '@/lib/AuthContext';
@@ -20,6 +22,7 @@ export default function SdrConsole() {
   const [runs, setRuns] = useState(null);
   const [leads, setLeads] = useState([]);
   const [modalOpen, setModalOpen] = useState(false);
+  const [dialOpen, setDialOpen] = useState(false);
   const { toast } = useToast();
   const { hasCap } = useAuth();
   const { usdToInr } = useConfig();
@@ -27,8 +30,8 @@ export default function SdrConsole() {
 
   useEffect(() => {
     Promise.allSettled([
-      base44.entities.AgentRun.list('-started_at', 500),
-      base44.entities.Lead.list(null, 500)
+      api.entities.AgentRun.list('-started_at', 500),
+      api.entities.Lead.list(null, 500)
     ]).then((settled) => {
       const [r, l] = settled.map((s) => (s.status === 'fulfilled' ? s.value : []));
       setRuns(r);
@@ -99,6 +102,9 @@ export default function SdrConsole() {
 
   if (!view) return <div className="p-6 text-sm text-slate-500">Loading SDR console…</div>;
 
+  // Meetings live on leads; the runs table resolves them through this map.
+  const leadsById = Object.fromEntries(leads.map((l) => [l.id, l]));
+
   const nextDial = view.nextDialAt
     ? view.nextDialAt.toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit', hour12: false })
     : '—';
@@ -113,7 +119,12 @@ export default function SdrConsole() {
           </span>
         )}
         {canDial ? (
-          <Button size="sm" className="ml-auto h-8 text-xs" onClick={() => setModalOpen(true)}>Start batch dial</Button>
+          <div className="ml-auto flex items-center gap-2">
+            <Button size="sm" variant="outline" className="h-8 text-xs bg-white" onClick={() => setDialOpen(true)}>
+              <Phone className="w-3.5 h-3.5 mr-1.5" /> Start dial
+            </Button>
+            <Button size="sm" className="h-8 text-xs" onClick={() => setModalOpen(true)}>Start batch dial</Button>
+          </div>
         ) : (
           <span className="ml-auto text-[11px] text-slate-500">Your role has view-only access to the calling floor</span>
         )}
@@ -122,7 +133,7 @@ export default function SdrConsole() {
       <SdrStatStrip stats={view.stats} />
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 items-start">
-        <div className="lg:col-span-2"><RunsTable runs={view.today.length ? view.today : runs.slice(0, 40)} /></div>
+        <div className="lg:col-span-2"><RunsTable runs={view.today.length ? view.today : runs.slice(0, 40)} leadsById={leadsById} /></div>
         <div className="space-y-4">
           <QueueDepthCard depth={view.depth} nextDialAt={nextDial} />
           <OutcomeDonut data={view.outcomes} />
@@ -130,6 +141,15 @@ export default function SdrConsole() {
           <OpenEscalations runs={view.escalations} />
         </div>
       </div>
+
+      <StartDialModal
+        open={dialOpen}
+        onOpenChange={setDialOpen}
+        onPlaced={async (data) => {
+          toast({ title: 'Call placed', description: `${data.phone} · ${data.provider === 'bolna' ? 'live call' : 'simulated'}` });
+          setRuns(await api.entities.AgentRun.list('-started_at', 500));
+        }}
+      />
 
       <BatchDialModal
         open={modalOpen}
@@ -142,7 +162,7 @@ export default function SdrConsole() {
           const summary = await dialSequentially(selected, onProgress, { script_variant: variant });
           toast({ title: 'Batch dial complete', description: `${summary.text} · ${variant}` });
           // Reflect the new calls without a reload.
-          setRuns(await base44.entities.AgentRun.list('-started_at', 500));
+          setRuns(await api.entities.AgentRun.list('-started_at', 500));
           return summary;
         }}
       />

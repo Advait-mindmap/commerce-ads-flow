@@ -98,7 +98,7 @@ export function rowToObject(row) {
 }
 
 /**
- * Build an ORDER BY for a Base44-style sort key ("-started_at" = descending).
+ * Build an ORDER BY for a signed sort key ("-started_at" = descending).
  *
  * Values land in JSONB as either numbers or strings, and a text sort of a
  * number column puts "9" above "10". So sort numerically when the key holds a

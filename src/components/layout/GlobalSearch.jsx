@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { base44 } from '@/api/base44Client';
+import { api } from '@/api/client';
 import { CommandDialog, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from '@/components/ui/command';
 
 export default function GlobalSearch() {
@@ -24,9 +24,9 @@ export default function GlobalSearch() {
     // Search spans three entities; a role denied one of them still gets the
     // others rather than a dialog stuck on "Loading records…".
     Promise.allSettled([
-      base44.entities.Seller.list('-gmv_30d', 500),
-      base44.entities.Lead.list('-created_date', 500),
-      base44.entities.Campaign.list('-spend_30d', 500)
+      api.entities.Seller.list('-gmv_30d', 500),
+      api.entities.Lead.list('-created_date', 500),
+      api.entities.Campaign.list('-spend_30d', 500)
     ]).then((settled) => {
       const [sellers, leads, campaigns] = settled.map((s) => (s.status === 'fulfilled' ? s.value : []));
       setData({ sellers, leads, campaigns });

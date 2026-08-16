@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
-import { base44 } from '@/api/base44Client';
+import { api } from '@/api/client';
 import { useToast } from '@/components/ui/use-toast';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import Breadcrumbs from '@/components/common/Breadcrumbs';
@@ -37,17 +37,17 @@ export default function Seller360() {
 
   useEffect(() => {
     (async () => {
-      const seller = await base44.entities.Seller.get(id);
+      const seller = await api.entities.Seller.get(id);
       // Roles reach this screen with different grants (SDR and Compliance cannot
       // read Experiments or ModelVersions), so a denied slice degrades to an
       // empty tab instead of hanging the whole profile on its skeleton.
       const settled = await Promise.allSettled([
-        base44.entities.Campaign.filter({ seller_id: id }),
-        base44.entities.Interaction.filter({ seller_id: id }, '-started_at', 100),
-        base44.entities.Lead.filter({ seller_id: id }),
-        base44.entities.Experiment.list(),
-        base44.entities.ModelVersion.filter({ model_key: 'pta' }),
-        base44.entities.Seller.filter({ category: seller.category }, null, 200)
+        api.entities.Campaign.filter({ seller_id: id }),
+        api.entities.Interaction.filter({ seller_id: id }, '-started_at', 100),
+        api.entities.Lead.filter({ seller_id: id }),
+        api.entities.Experiment.list(),
+        api.entities.ModelVersion.filter({ model_key: 'pta' }),
+        api.entities.Seller.filter({ category: seller.category }, null, 200)
       ]);
       const [campaigns, interactions, leads, experiments, models, peers] =
         settled.map((s) => (s.status === 'fulfilled' ? s.value : []));
@@ -86,7 +86,7 @@ export default function Seller360() {
     const existing = (leads || []).find((l) => l.seller_id === seller.id);
     if (existing) return existing;
 
-    const created = await base44.entities.Lead.create({
+    const created = await api.entities.Lead.create({
       seller_id: seller.id,
       seller_name: seller.display_name,
       category: seller.category,
@@ -133,13 +133,13 @@ export default function Seller360() {
       <SellerHeader
         seller={seller}
         busy={busy}
-        onAction={async (action) => {
+        onAction={async (action, member) => {
           setBusy(true);
           try {
             const lead = await ensureLead();
 
             if (action === 'sequence') {
-              await base44.entities.Sequence.create({
+              await api.entities.Sequence.create({
                 seller_id: seller.id,
                 seller_name: seller.display_name,
                 lead_id: lead.id,
@@ -161,8 +161,10 @@ export default function Seller360() {
             }
 
             if (action === 'assign') {
-              const repName = user?.full_name || user?.email;
-              await base44.entities.Lead.update(lead.id, { assigned_rep_name: repName, assigned_rep_id: user?.id });
+              // Any team member can own this, not only the signed-in user.
+              const assignee = member || { name: user?.full_name || user?.email, id: user?.id };
+              const repName = assignee.name;
+              await api.entities.Lead.update(lead.id, { assigned_rep_name: repName, assigned_rep_id: assignee.id });
               await logAudit({
                 action: 'lead_assigned',
                 entity_type: 'Seller',
@@ -183,6 +185,7 @@ export default function Seller360() {
         onCallNow={handleCallNow}
         callNotice={callNotice}
         canDial={hasCap('dial')}
+        assignedTo={(data.leads || []).find((l) => l.assigned_rep_name)?.assigned_rep_name || null}
       />
       {callNotice && callNotice.kind === 'blocked' && (
         <Alert className="border-amber-200 bg-amber-50 text-amber-900">

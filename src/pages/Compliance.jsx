@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { base44 } from '@/api/base44Client';
+import { api } from '@/api/client';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import SuppressionsTab from '@/components/compliance/SuppressionsTab';
 import AuditLogTab from '@/components/compliance/AuditLogTab';
@@ -10,8 +10,8 @@ export default function Compliance() {
 
   useEffect(() => {
     Promise.all([
-      base44.entities.Suppression.list('-created_at', 500),
-      base44.entities.AuditLog.list('-timestamp', 500)
+      api.entities.Suppression.list('-created_at', 500),
+      api.entities.AuditLog.list('-timestamp', 500)
     ]).then(([suppressions, logs]) => setData({ suppressions, logs }));
   }, []);
 

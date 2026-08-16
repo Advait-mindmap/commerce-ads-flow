@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { LayoutGrid, Table as TableIcon } from 'lucide-react';
-import { base44 } from '@/api/base44Client';
+import { api } from '@/api/client';
 import { useToast } from '@/components/ui/use-toast';
 import PipelineBoard from '@/components/pipeline/PipelineBoard';
 import PipelineTable from '@/components/pipeline/PipelineTable';
@@ -16,9 +16,9 @@ export default function Pipeline() {
 
   useEffect(() => {
     Promise.all([
-      base44.entities.Opportunity.list('-created_date', 500),
-      base44.entities.AdPackage.list(),
-      base44.entities.Interaction.list('-started_at', 500)
+      api.entities.Opportunity.list('-created_date', 500),
+      api.entities.AdPackage.list(),
+      api.entities.Interaction.list('-started_at', 500)
     ]).then(([o, p, i]) => { setOpps(o); setPackages(p); setInteractions(i); });
   }, []);
 
@@ -26,7 +26,7 @@ export default function Pipeline() {
 
   const move = async (id, stage) => {
     setOpps((rows) => rows.map((o) => (o.id === id ? { ...o, stage, days_in_stage: 0 } : o)));
-    await base44.entities.Opportunity.update(id, { stage, days_in_stage: 0 });
+    await api.entities.Opportunity.update(id, { stage, days_in_stage: 0 });
     const opp = opps.find((o) => o.id === id);
     toast({ title: 'Stage updated', description: `${opp ? opp.seller_name : 'Opportunity'} → ${stage}` });
   };

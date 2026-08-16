@@ -1,6 +1,6 @@
 import React, { useState } from "react";
 import { Link } from "react-router-dom";
-import { base44 } from "@/api/base44Client";
+import { api } from "@/api/client";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -36,7 +36,7 @@ export default function Register() {
     }
     setLoading(true);
     try {
-      const res = await base44.auth.register({ email, password, full_name: fullName });
+      const res = await api.auth.register({ email, password, full_name: fullName });
       setDevOtp(res?.dev_otp || null);
       setShowOtp(true);
     } catch (err) {
@@ -50,8 +50,8 @@ export default function Register() {
     setError("");
     setLoading(true);
     try {
-      const result = await base44.auth.verifyOtp({ email, otpCode });
-      if (result?.access_token) base44.auth.setToken(result.access_token);
+      const result = await api.auth.verifyOtp({ email, otpCode });
+      if (result?.access_token) api.auth.setToken(result.access_token);
       window.location.href = safeReturnTo();
     } catch (err) {
       setError(err.message || "Invalid verification code");
@@ -63,7 +63,7 @@ export default function Register() {
   const handleResend = async () => {
     setError("");
     try {
-      const res = await base44.auth.resendOtp(email);
+      const res = await api.auth.resendOtp(email);
       setDevOtp(res?.dev_otp || null);
       toast({ title: "Code reissued", description: res?.dev_otp ? `Your code is ${res.dev_otp}` : "Check your email for the new code." });
     } catch (err) {

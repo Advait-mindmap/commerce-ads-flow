@@ -1,4 +1,4 @@
-import { base44 } from '@/api/base44Client';
+import { api } from '@/api/client';
 
 const wait = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
@@ -15,7 +15,7 @@ export async function dialOne(leadIdOrLead, options = {}) {
   }
 
   try {
-    const res = await base44.functions.invoke('bolnaCall', { lead_id, ...options });
+    const res = await api.functions.invoke('bolnaCall', { lead_id, ...options });
     const data = res && typeof res === 'object' && 'data' in res ? res.data : res;
 
     if (data && data.blocked) {

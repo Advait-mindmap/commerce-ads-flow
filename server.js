@@ -9,7 +9,8 @@ import { initSchema, pool } from './server/db.js';
 import { router as configRouter, startConfig } from './server/config.js';
 import { attachUser, router as authRouter } from './server/auth.js';
 import { router as entitiesRouter } from './server/entities.js';
-import { resumeInFlight, router as functionsRouter } from './server/functions.js';
+import { refreshExperiments, resumeInFlight, router as functionsRouter } from './server/functions.js';
+import { router as webhooksRouter } from './server/webhooks.js';
 import { isSeeded, seedAll } from './server/seed.js';
 
 dotenv.config();
@@ -46,6 +47,10 @@ app.get('/api/health', async (_req, res) => {
 // Runtime config carries no secrets and the shell reads it before any entity
 // call, so it sits outside the auth boundary.
 app.use('/api/config', configRouter);
+
+// Provider webhooks authenticate with a shared secret, not a session, so they
+// are mounted ahead of the auth middleware.
+app.use('/api/webhooks', webhooksRouter);
 
 app.use(attachUser);
 app.use('/api/auth', authRouter);
@@ -100,6 +105,19 @@ async function boot() {
     }
 
     await resumeInFlight();
+
+    // Experiment arms are a read of the funnel, so they are recomputed on a
+    // timer rather than written once at seed time.
+    const reanalyse = async () => {
+      try {
+        const n = await refreshExperiments();
+        if (n) console.log(`[scheduler] re-analysed ${n} running experiment(s)`);
+      } catch (err) {
+        console.error('[scheduler] experiment analysis failed', err.message);
+      }
+    };
+    await reanalyse();
+    setInterval(reanalyse, 2 * 60 * 1000).unref?.();
   } catch (err) {
     bootError = err.message;
     console.error('[boot] failed', err);

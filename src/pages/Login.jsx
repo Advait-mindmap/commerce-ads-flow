@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
-import { base44 } from "@/api/base44Client";
+import { api } from "@/api/client";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -21,7 +21,7 @@ export default function Login() {
   const returnTo = safeReturnTo();
 
   useEffect(() => {
-    base44.auth.demoUsers().then(setDemo).catch(() => setDemo({ enabled: false, users: [] }));
+    api.auth.demoUsers().then(setDemo).catch(() => setDemo({ enabled: false, users: [] }));
   }, []);
 
   const handleSubmit = async (e) => {
@@ -29,7 +29,7 @@ export default function Login() {
     setError("");
     setLoading(true);
     try {
-      await base44.auth.loginViaEmailPassword(email, password);
+      await api.auth.loginViaEmailPassword(email, password);
       window.location.href = returnTo;
     } catch (err) {
       setError(err.message || "Invalid email or password");
@@ -44,7 +44,7 @@ export default function Login() {
     setError("");
     setDemoBusy(role);
     try {
-      await base44.auth.demoLogin(role);
+      await api.auth.demoLogin(role);
       window.location.href = returnTo;
     } catch (err) {
       setError(err.message || "Could not start the demo session");
@@ -55,7 +55,7 @@ export default function Login() {
   return (
     <AuthLayout
       icon={LogIn}
-      title="CommerceAds OS"
+      title="InSales OS"
       subtitle="Sign in to the ad sales workspace"
       footer={
         <>

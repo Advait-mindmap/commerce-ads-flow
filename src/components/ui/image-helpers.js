@@ -1,5 +1,7 @@
+// Hosts whose URLs support the /v1/fill|fit transform syntax used below. The
+// former platform's media CDN was dropped along with the rest of that
+// integration; only the Wix static host remains reachable.
 const WIX_MEDIA_HOSTS = {
-  "media.base44.com": "/images/public/",
   "static.wixstatic.com": "/media/",
 }
 

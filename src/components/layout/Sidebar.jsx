@@ -27,7 +27,7 @@ export default function Sidebar() {
     <aside className="w-[240px] shrink-0 bg-white border-r border-[#E2E8F0] flex flex-col">
       <div className="h-14 flex items-center px-4 border-b border-[#F1F5F9]">
         <span className="text-[15px] font-semibold text-[#0F172A] tracking-tight">
-          CommerceAds <span className="text-[#1E40AF]">OS</span>
+          InSales <span className="text-[#1E40AF]">OS</span>
         </span>
       </div>
 

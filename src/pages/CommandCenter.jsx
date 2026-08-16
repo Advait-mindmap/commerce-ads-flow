@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { base44 } from '@/api/base44Client';
+import { api } from '@/api/client';
 import KpiTile from '@/components/command/KpiTile';
 import FunnelBar from '@/components/command/FunnelBar';
 import PipelineByStage from '@/components/command/PipelineByStage';
@@ -24,11 +24,11 @@ export default function CommandCenter() {
       // allSettled, not all: a role without read access to one slice should see
       // that slice empty, not leave the whole dashboard stuck on skeletons.
       const settled = await Promise.allSettled([
-        base44.entities.Seller.list(null, 500),
-        base44.entities.Lead.list(null, 500),
-        base44.entities.Opportunity.list(null, 500),
-        base44.entities.Campaign.list(null, 500),
-        base44.entities.AgentRun.list('-started_at', 500)
+        api.entities.Seller.list(null, 500),
+        api.entities.Lead.list(null, 500),
+        api.entities.Opportunity.list(null, 500),
+        api.entities.Campaign.list(null, 500),
+        api.entities.AgentRun.list('-started_at', 500)
       ]);
       const [sellers, leads, opportunities, campaigns, runs] = settled.map((s) => (s.status === 'fulfilled' ? s.value : []));
       setData({ sellers, leads, opportunities, campaigns, runs });

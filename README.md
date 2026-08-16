@@ -1,4 +1,4 @@
-# CommerceAds OS
+# InSales OS
 
 Ad sales platform for e-commerce marketplaces. See [SPEC.md](./SPEC.md) for the
 product specification.
@@ -10,7 +10,7 @@ It is self-contained — there is no external backend dependency.
 
 ```
 src/                    React frontend (Vite)
-  api/base44Client.js   API client: entities, auth, functions
+  api/client.js         API client: entities, auth, functions
   lib/AuthContext.jsx   Session + role grants
 server.js               Express entry point, serves the API and the built SPA
 server/

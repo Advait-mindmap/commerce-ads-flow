@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { base44 } from '@/api/base44Client';
+import { api } from '@/api/client';
 import { useToast } from '@/components/ui/use-toast';
 import FilterChips from '@/components/campaigns/FilterChips';
 import CampaignTable from '@/components/campaigns/CampaignTable';
@@ -32,7 +32,7 @@ export default function Campaigns() {
   const canDecide = hasCap('approve_optimization');
 
   useEffect(() => {
-    base44.entities.Campaign.list('-spend_30d', 500).then(setCampaigns);
+    api.entities.Campaign.list('-spend_30d', 500).then(setCampaigns);
   }, []);
 
   const rows = useMemo(() => {
@@ -58,7 +58,7 @@ export default function Campaigns() {
     setBusy(true);
     const actions = (campaign.optimization_actions || []).map((a, i) => (i === index ? { ...a, status } : a));
     const action = actions[index];
-    await base44.entities.Campaign.update(campaign.id, { optimization_actions: actions });
+    await api.entities.Campaign.update(campaign.id, { optimization_actions: actions });
     await logAudit({
       action: `optimization_action_${status}`,
       entity_type: 'Campaign',

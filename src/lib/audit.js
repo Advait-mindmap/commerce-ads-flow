@@ -1,4 +1,4 @@
-import { base44 } from '@/api/base44Client';
+import { api } from '@/api/client';
 
 // Resolved on first use rather than at import: at module-load time nobody is
 // signed in yet, so an eager call would pin the actor to the fallback name.
@@ -6,7 +6,7 @@ let actorPromise = null;
 
 function currentActor() {
   if (!actorPromise) {
-    actorPromise = base44.auth
+    actorPromise = api.auth
       .me()
       .then((u) => u.full_name || u.email || 'Rep')
       .catch(() => 'Rep');
@@ -16,7 +16,7 @@ function currentActor() {
 
 export async function logAudit({ action, entity_type, entity_id, entity_name, summary, before_value, after_value, actor_type = 'human_rep' }) {
   const actorName = await currentActor();
-  return base44.entities.AuditLog.create({
+  return api.entities.AuditLog.create({
     actor_type,
     actor_name: actorName,
     action,

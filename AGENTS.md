@@ -2,33 +2,34 @@
 
 ## Project Context
 
-This is a Base44 app repository. Treat it as user-owned application code, keep changes focused on the user's request, and preserve existing project conventions.
+InSales OS — an ad sales platform for e-commerce marketplaces. See `SPEC.md`
+for the product specification and `README.md` for setup.
 
-Start with `README.md` for local setup, environment variables, and publish workflow.
-
-## Base44 References
-
-- CLI overview: https://docs.base44.com/developers/references/cli/get-started/overview.md
-- Agent skills: https://docs.base44.com/developers/backend/overview/skills.md
-
-If your agent supports Agent Skills, install or update Base44 skills before Base44-specific work:
-
-```bash
-npx skills add base44/skills
-```
+This is a self-contained application: a React/Vite frontend served by an Express
+API backed by Postgres. There is no external backend service and no hosted
+builder. Treat it as ordinary application code.
 
 ## Key Files
 
-- `src/`: frontend application source.
-- `src/api/base44Client.js`: frontend Base44 SDK client.
-- `vite.config.js`: Vite config and Base44 Vite plugin setup.
-- `.env.local`: local-only environment values; never commit secrets.
+- `server.js` — Express entry point; serves the API and the built SPA.
+- `server/` — API layer: `db.js` (Postgres + JSONB entity store), `rbac.js`
+  (roles, the authority on permissions), `auth.js`, `entities.js` (generic CRUD),
+  `functions.js` (callable functions incl. the dialer), `seed.js` (demo data).
+- `src/api/client.js` — the frontend API client. Pages call
+  `api.entities.<Entity>.list(...)`.
+- `src/lib/AuthContext.jsx` — session and role grants.
+- `vite.config.js` — build config and the `@` → `src` alias.
+- `.env.local` — local-only environment values; never commit secrets.
 
 ## Working Notes
 
-- Use `base44 dev` as the default local development command when you need the local Base44 backend. It can run the backend and frontend together.
-- When docs or code mention the frontend being started automatically, that usually means the Base44 project config includes `site.serveCommand`, for example `"serveCommand": "npm run dev"` in `base44/config.jsonc`.
-- Use `npm run dev` only for frontend-only work against the hosted Base44 backend.
-- Prefer the existing Base44 CLI workflow over adding new npm scripts for Base44-specific tasks.
-- Reuse the existing SDK client and Vite plugin patterns before adding new Base44 integration paths.
-- Run the relevant checks from `package.json` before finishing code changes.
+- `npm run build` then `npm start` runs the whole app; the server serves `dist/`.
+  `npm run dev` alone gives you the frontend without an API.
+- Roles and permissions live in `server/rbac.js` and are enforced server-side on
+  every read, write and privileged function. The copy the browser receives from
+  `/api/auth/me` is only for hiding UI — never treat it as the boundary.
+- Entities are stored as `id + timestamps + JSONB`. Adding a field needs no
+  migration; adding an entity means adding it to `ENTITIES` in `server/db.js`.
+- Run `npm run lint` before finishing a change.
+- Deployment is Railway, CLI-only: `railway up --service app`. Pushing to git
+  does not deploy.

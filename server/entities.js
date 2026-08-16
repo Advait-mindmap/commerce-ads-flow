@@ -139,8 +139,17 @@ router.get('/:entity/:id', guard('read'), async (req, res, next) => {
 
 router.post('/:entity', guard('create'), async (req, res, next) => {
   try {
-    res.status(201).json(await insert(req.table, req.entity, req.body));
-  } catch (err) { next(err); }
+    const created = await insert(req.table, req.entity, req.body);
+
+    // Enrolment and the SLA clock are applied server-side, so a lead created
+    // from Signal Explorer, Seller 360 or a raw API call is treated identically
+    // rather than depending on which screen made it.
+    if (req.entity === 'Lead') {
+      const { enrichNewLead } = await import('./functions.js');
+      return res.status(201).json(await enrichNewLead(created));
+    }
+    return res.status(201).json(created);
+  } catch (err) { return next(err); }
 });
 
 router.patch('/:entity/:id', guard('update'), async (req, res, next) => {

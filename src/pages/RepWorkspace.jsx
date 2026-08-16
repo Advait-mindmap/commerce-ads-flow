@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { base44 } from '@/api/base44Client';
+import { api } from '@/api/client';
 import { useToast } from '@/components/ui/use-toast';
 import LeadQueue from '@/components/workspace/LeadQueue';
 import OpenWith from '@/components/workspace/OpenWith';
@@ -30,10 +30,10 @@ export default function RepWorkspace() {
 
   useEffect(() => {
     Promise.all([
-      base44.entities.Lead.list(null, 500),
-      base44.entities.Seller.list(null, 500),
-      base44.entities.AdPackage.list(),
-      base44.entities.Interaction.list('-started_at', 500)
+      api.entities.Lead.list(null, 500),
+      api.entities.Seller.list(null, 500),
+      api.entities.AdPackage.list(),
+      api.entities.Interaction.list('-started_at', 500)
     ]).then(([l, s, p, i]) => { setLeads(l); setSellers(s); setPackages(p); setInteractions(i); });
   }, []);
 
@@ -67,7 +67,7 @@ export default function RepWorkspace() {
   const logAndNext = async ({ outcome, objections, nextAction, notes }) => {
     if (!selected) return;
     setBusy(true);
-    await base44.entities.Interaction.create({
+    await api.entities.Interaction.create({
       seller_id: selected.seller_id,
       seller_name: selected.seller_name,
       lead_id: selected.id,
@@ -85,7 +85,7 @@ export default function RepWorkspace() {
     if (nextAction === 'disqualify') patch.stage = 'disqualified';
     if (nextAction === 'add_to_nurture') patch.stage = 'nurture';
     if (nextAction === 'book_meeting') { patch.meeting_status = 'booked'; patch.meeting_booked_by = 'human'; }
-    await base44.entities.Lead.update(selected.id, patch);
+    await api.entities.Lead.update(selected.id, patch);
 
     const remaining = queue.filter((l) => l.id !== selected.id);
     setLeads((ls) => ls.map((l) => (l.id === selected.id ? { ...l, ...patch } : l)));

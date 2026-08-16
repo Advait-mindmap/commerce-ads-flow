@@ -1,11 +1,11 @@
 /**
- * API client for the CommerceAds backend.
+ * API client for the InSales OS backend.
  *
- * The surface deliberately matches what the pages already call:
- *   base44.entities.<Entity>.list(sort, limit)
- *   base44.entities.<Entity>.filter(where, sort, limit)
- *   base44.entities.<Entity>.get(id) / .create(data) / .update(id, data)
- *   base44.entities.<Entity>.bulkUpdate([{ id, ...patch }])
+ * The surface matches what the pages call:
+ *   api.entities.<Entity>.list(sort, limit)
+ *   api.entities.<Entity>.filter(where, sort, limit)
+ *   api.entities.<Entity>.get(id) / .create(data) / .update(id, data)
+ *   api.entities.<Entity>.bulkUpdate([{ id, ...patch }])
  *
  * Auth is a session cookie set by the server (httpOnly), so nothing here has to
  * hold a token. setToken exists only for the register→verify flow, which hands
@@ -13,7 +13,7 @@
  */
 
 const API_BASE = import.meta.env.VITE_API_BASE_URL || '/api';
-const TOKEN_KEY = 'commerceads_token';
+const TOKEN_KEY = 'insales_token';
 
 const readToken = () => {
   try { return window.localStorage.getItem(TOKEN_KEY); } catch { return null; }
@@ -78,7 +78,7 @@ function entityApi(entity) {
 }
 
 // Entity accessors are created on demand, so a new backend entity needs no
-// change here — base44.entities.Whatever just works.
+// change here — api.entities.Whatever just works.
 const entityCache = new Map();
 const entities = new Proxy({}, {
   get(_target, prop) {
@@ -107,6 +107,9 @@ const auth = {
     if (res?.access_token) auth.setToken(res.access_token);
     return res;
   },
+
+  /** Team directory for assignment pickers. */
+  team: () => request('/auth/team'),
 
   register: ({ email, password, full_name }) =>
     request('/auth/register', { method: 'POST', body: JSON.stringify({ email, password, full_name }) }),
@@ -142,4 +145,4 @@ const functions = {
     request(`/functions/${encodeURIComponent(name)}`, { method: 'POST', body: JSON.stringify(body) })
 };
 
-export const base44 = { entities, auth, functions };
+export const api = { entities, auth, functions };

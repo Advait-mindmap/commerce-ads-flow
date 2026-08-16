@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { base44 } from '@/api/base44Client';
+import { api } from '@/api/client';
 import { useToast } from '@/components/ui/use-toast';
 import { Switch } from '@/components/ui/switch';
 import MqlTable from '@/components/mql/MqlTable';
@@ -31,8 +31,8 @@ export default function MqlInbox() {
 
   useEffect(() => {
     Promise.all([
-      base44.entities.Lead.filter({ stage: 'mql' }, '-mql_at', 300),
-      base44.entities.Sequence.list('-last_sent_at', 500)
+      api.entities.Lead.filter({ stage: 'mql' }, '-mql_at', 300),
+      api.entities.Sequence.list('-last_sent_at', 500)
     ]).then(([l, s]) => { setLeads(l); setSequences(s); });
   }, []);
 
@@ -96,7 +96,7 @@ export default function MqlInbox() {
     toast({ title: `Adding ${ids.length} lead(s) to a sequence…` });
     await Promise.all(ids.map((id) => {
       const lead = leads.find((l) => l.id === id);
-      return base44.entities.Sequence.create({
+      return api.entities.Sequence.create({
         seller_id: lead.seller_id,
         seller_name: lead.seller_name,
         lead_id: id,
@@ -115,7 +115,7 @@ export default function MqlInbox() {
       entity_name: (leads.find((l) => l.id === id) || {}).seller_name,
       summary: 'Enrolled in a 4-step WhatsApp nurture sequence'
     })));
-    const fresh = await base44.entities.Sequence.list('-last_sent_at', 500);
+    const fresh = await api.entities.Sequence.list('-last_sent_at', 500);
     setSequences(fresh);
     setSelected([]);
     setBusy(false);
@@ -125,7 +125,7 @@ export default function MqlInbox() {
   const disqualify = async (ids) => {
     setBusy(true);
     toast({ title: `Disqualifying ${ids.length} lead(s)…` });
-    await base44.entities.Lead.bulkUpdate(ids.map((id) => ({ id, stage: 'disqualified', disqualify_reason: 'Manually disqualified from MQL inbox' })));
+    await api.entities.Lead.bulkUpdate(ids.map((id) => ({ id, stage: 'disqualified', disqualify_reason: 'Manually disqualified from MQL inbox' })));
     await Promise.all(ids.map((id) => logAudit({
       action: 'lead_disqualified',
       entity_type: 'Lead',

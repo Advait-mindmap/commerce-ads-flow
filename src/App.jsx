@@ -19,6 +19,7 @@ import CommandCenter from '@/pages/CommandCenter';
 import SignalExplorer from '@/pages/SignalExplorer';
 import SdrConsole from '@/pages/SdrConsole';
 import CallDetail from '@/pages/CallDetail';
+import SellerOutreach from '@/pages/SellerOutreach';
 import RepWorkspace from '@/pages/RepWorkspace';
 import Pipeline from '@/pages/Pipeline';
 import Seller360 from '@/pages/Seller360';
@@ -64,6 +65,7 @@ const AuthenticatedApp = () => {
           <Route path="/mql" element={<MqlInbox />} />
           <Route path="/sdr" element={<SdrConsole />} />
           <Route path="/sdr/calls/:id" element={<CallDetail />} />
+          <Route path="/sdr/sellers/:id" element={<SellerOutreach />} />
           <Route path="/sellers/:id" element={<Seller360 />} />
           <Route path="/workspace" element={<RepWorkspace />} />
           <Route path="/pipeline" element={<Pipeline />} />
