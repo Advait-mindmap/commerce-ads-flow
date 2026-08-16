@@ -82,6 +82,8 @@ router.get('/', (_req, res) => {
     voice: {
       configured: voiceStatus.configured,
       reachable: voiceStatus.reachable,
+      // The account's own caller ID — useful to show, and not vendor detail.
+      from_number: voiceStatus.from_number || null,
       // Which dials are permitted to actually ring a phone. Defaults to manual
       // only, because seeded seller numbers are generated and would otherwise
       // cold-call real people.

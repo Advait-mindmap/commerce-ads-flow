@@ -18,7 +18,9 @@ const TIMEOUT_MS = 15000;
 export const providerConfig = () => ({
   apiKey: process.env.VOICE_API_KEY || process.env.BOLNA_API_KEY,
   agentId: process.env.VOICE_AGENT_ID || process.env.BOLNA_AGENT_ID,
-  webhookSecret: process.env.VOICE_WEBHOOK_SECRET || process.env.BOLNA_WEBHOOK_SECRET
+  webhookSecret: process.env.VOICE_WEBHOOK_SECRET || process.env.BOLNA_WEBHOOK_SECRET,
+  // Caller ID the recipient sees. Must be a number the account owns.
+  fromNumber: process.env.VOICE_FROM_NUMBER || null
 });
 
 /** True only when a real call could actually be placed. */
@@ -155,19 +157,33 @@ async function request(path, { method = 'GET', body } = {}) {
  * `userData` is handed to the voice agent as template variables — this is what
  * lets the agent open with the seller's own numbers.
  */
-export async function placeCall({ phone, userData = {}, agentId }) {
+export async function placeCall({ phone, userData = {}, agentId, fromNumber }) {
   const cfg = providerConfig();
+  const from = normalizePhone(fromNumber || cfg.fromNumber);
+
   const payload = {
     agent_id: agentId || cfg.agentId,
     recipient_phone_number: phone,
     user_data: userData
   };
+  // Sent only when configured, so an account that relies on the number bound
+  // to the agent keeps working untouched.
+  if (from) payload.from_phone_number = from;
 
   const res = await request('/call', { method: 'POST', body: payload });
   if (!res.ok) {
-    return { ok: false, error: res.data?.error || res.data?.detail || `The voice service returned ${res.status}`, status: res.status, raw: res.data };
+    // Surface the provider's own message verbatim. If the caller-ID field were
+    // named differently or the number were not owned, this is where it shows —
+    // silently dropping it would mean calls quietly using the wrong number.
+    const detail = res.data?.message || res.data?.error || res.data?.detail;
+    return {
+      ok: false,
+      error: detail ? String(detail) : `The voice service returned ${res.status}`,
+      status: res.status,
+      raw: res.data
+    };
   }
-  return { ok: true, callId: extractCallId(res.data), raw: res.data };
+  return { ok: true, callId: extractCallId(res.data), from: from || null, raw: res.data };
 }
 
 /** Reads a call's current state. Tries both endpoint spellings the API uses. */
@@ -207,6 +223,7 @@ export async function probe() {
   return {
     configured: true,
     reachable: true,
+    from_number: providerConfig().fromNumber || null,
     agent_id: agentId,
     agent_name: res.data?.agent_name || null,
     agent_status: res.data?.agent_status || null,

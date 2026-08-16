@@ -406,6 +406,7 @@ async function dial({ phone, lead, seller, contact, scriptVariant, rng, startedA
     return {
       provider: 'live',
       provider_call_id: result.callId,
+      from_number: result.from || null,
       // A real call is genuinely queued until the provider reports otherwise;
       // the webhook or the poller moves it on.
       status: 'queued',

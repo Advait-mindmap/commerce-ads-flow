@@ -152,7 +152,7 @@ export default function StartDialModal({ open, onOpenChange, onPlaced }) {
             {voice_provider === 'simulated'
               ? 'Voice calling is not configured, so this call is simulated — no phone will actually ring.'
               : voice?.reachable
-                ? <>This places a <span className="font-medium text-slate-700">real outbound call</span> and the number will ring.</>
+                ? <>This places a <span className="font-medium text-slate-700">real outbound call</span> and the number will ring{voice.from_number ? <>, showing <span className="tabular-nums font-medium text-slate-700">{voice.from_number}</span> as the caller</> : null}.</>
                 : 'Voice calling is configured but currently unreachable — this call will fail.'}
           </p>
         </div>
