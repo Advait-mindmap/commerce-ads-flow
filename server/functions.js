@@ -15,6 +15,7 @@ import { makeRng } from './rng.js';
 import { buildCall, extractFromTranscript } from './call-sim.js';
 import { newEntityId } from './entities.js';
 import * as voice from './voice.js';
+import { analyseTranscript } from './qualify.js';
 import {
   analyseExperiment,
   assignmentsFor,
@@ -814,10 +815,14 @@ const handlers = {
       return { status: 200, payload: { error: 'There is no transcript on this call yet — pull the latest first.' } };
     }
 
-    const extracted = extractFromTranscript(run.transcript);
+    const extracted = await analyseTranscript(run.transcript, {
+      seller_name: run.seller_name,
+      category: run.category,
+      language: run.language
+    });
 
     let escalation = run.escalation;
-    const pricingBreach = extracted.guardrail_events.find((g) =>
+    const pricingBreach = (extracted.guardrail_events || []).find((g) =>
       ['pricing_question', 'roas_guarantee_request', 'contract_terms'].includes(g.type));
 
     if (pricingBreach && !escalation?.triggered) {

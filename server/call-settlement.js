@@ -13,7 +13,7 @@
 
 import crypto from 'crypto';
 import { q, rowToObject, tableFor } from './db.js';
-import { extractFromTranscript } from './call-sim.js';
+import { analyseTranscript } from './qualify.js';
 
 const table = (entity) => tableFor(entity);
 const newEntityId = (entity) => `${entity.toLowerCase()}_${crypto.randomBytes(8).toString('hex')}`;
@@ -151,16 +151,28 @@ export async function settleRun(run, read, { source = 'webhook', signatureVerifi
     ? spreadTurnsOver(rawTranscript, durationSec)
     : rawTranscript;
 
-  const extracted = transcript.length ? extractFromTranscript(transcript) : null;
+  // Read by Claude where a key is configured; falls back to the keyword
+  // extractor on any failure, so a call is never lost to an API outage.
+  const extracted = transcript.length
+    ? await analyseTranscript(transcript, {
+        seller_name: run.seller_name,
+        category: run.category,
+        language: run.language
+      })
+    : null;
 
   let escalation = run.escalation;
-  const breach = (extracted?.guardrail_events || []).find((g) =>
+  const breaches = (extracted?.guardrail_events || []).filter((g) =>
     ['pricing_question', 'roas_guarantee_request', 'contract_terms'].includes(g.type));
+  // An undeflected breach means the agent said something it must never say, so
+  // it outranks a cleanly handled one when deciding what a rep sees first.
+  const breach = breaches.find((g) => g.agent_deflected === false) || breaches[0];
   if (breach && !escalation?.triggered) {
     escalation = {
       triggered: true,
       trigger_type: breach.type,
       trigger_verbatim: breach.verbatim,
+      agent_deflected: breach.agent_deflected !== false,
       status: 'open',
       assigned_rep: await leastLoadedRep(),
       raised_at: new Date().toISOString()
@@ -183,6 +195,10 @@ export async function settleRun(run, read, { source = 'webhook', signatureVerifi
     guardrail_events: extracted?.guardrail_events || [],
     overall_sentiment: extracted?.overall_sentiment ?? 0,
     talk_ratio: extracted?.talk_ratio ?? 0.5,
+    call_summary: extracted?.summary || null,
+    meeting_time_text: extracted?.meeting_time_text || null,
+    detected_language: extracted?.detected_language || null,
+    opt_out_requested: extracted?.opt_out_requested ?? false,
     escalation,
     settled_by: source,
     ...(signatureVerified === null ? {} : { signature_verified: signatureVerified })
@@ -202,10 +218,39 @@ export async function settleRun(run, read, { source = 'webhook', signatureVerifi
       outcome,
       disposition: outcome,
       duration_sec: durationSec,
-      summary: `Call ${outcome.replace(/_/g, ' ')} with ${transcript.length} conversation turns.`,
+      summary: extracted?.summary || `Call ${outcome.replace(/_/g, ' ')} with ${transcript.length} conversation turns.`,
       objections: (extracted?.objections || []).map((o) => o.objection_type),
       sentiment_score: extracted?.overall_sentiment ?? 0,
       started_at: run.started_at || new Date().toISOString()
+    });
+  }
+
+  /*
+   * A seller who asked not to be contacted is suppressed here, immediately.
+   * The pre-dial gate reads these records, so writing one is what actually
+   * stops the next call — recording the request without acting on it would
+   * leave the platform calling someone who withdrew consent.
+   */
+  if (extracted?.opt_out_requested && run.seller_id) {
+    await insertRow('Suppression', {
+      id: `sup_optout_${run.id}`,
+      seller_id: run.seller_id,
+      seller_name: run.seller_name,
+      reason: 'opted_out',
+      source: 'voice_call',
+      detail: `Seller asked not to be contacted again on the call of ${new Date(run.started_at || Date.now()).toISOString().slice(0, 10)}.`,
+      agent_run_id: run.id,
+      expires_at: null,
+      created_at: new Date().toISOString()
+    });
+    await audit({
+      actor_type: 'system',
+      actor_name: 'Suppression monitor',
+      action: 'suppression_added',
+      entity_type: 'Seller',
+      entity_id: run.seller_id,
+      entity_name: run.seller_name,
+      summary: 'Seller asked to be removed from outreach on a call — suppressed from future dials'
     });
   }
 

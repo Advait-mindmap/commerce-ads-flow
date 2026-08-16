@@ -92,7 +92,21 @@ export default function QualificationCard({ qualification, reveal, onFieldSave }
   const count = reveal == null ? fields.length : Math.ceil(reveal * fields.length);
 
   return (
-    <Panel title="Qualification">
+    <Panel
+      title="Qualification"
+      /* Says what produced this verdict. A rep second-guessing a record should
+         not have to wonder whether it was read or pattern-matched. */
+      action={q.read_by ? (
+        <span
+          className="text-[10px] uppercase tracking-wide text-slate-500 border border-slate-200 rounded px-1.5 py-0.5"
+          title={q.read_by === 'claude'
+            ? 'Transcript read by Claude'
+            : 'Keyword fallback — the transcript was not read by a model'}
+        >
+          {q.read_by === 'claude' ? 'AI read' : 'keyword fallback'}
+        </span>
+      ) : null}
+    >
       {fields.slice(0, count).map((f) => (
         <Field
           key={f.key}
@@ -106,8 +120,11 @@ export default function QualificationCard({ qualification, reveal, onFieldSave }
         </Field>
       ))}
       {count < fields.length && <p className="text-[11px] text-slate-400 pt-2">Filling in as the call plays…</p>}
-      {q.pain_description && count === fields.length && (
-        <p className="text-xs text-slate-600 mt-2 pt-2 border-t border-slate-200">{q.pain_description}</p>
+      {/* Why the verdict landed where it did, in the reader's own words. */}
+      {(q.rationale || q.pain_description) && count === fields.length && (
+        <p className="text-xs text-slate-600 mt-2 pt-2 border-t border-slate-200">
+          {q.rationale || q.pain_description}
+        </p>
       )}
     </Panel>
   );
