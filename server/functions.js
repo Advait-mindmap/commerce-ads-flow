@@ -16,6 +16,7 @@ import { buildCall, extractFromTranscript } from './call-sim.js';
 import { newEntityId } from './entities.js';
 import * as voice from './voice.js';
 import { analyseTranscript } from './qualify.js';
+import { syncFromProvider } from './provider-sync.js';
 import {
   analyseExperiment,
   assignmentsFor,
@@ -405,6 +406,13 @@ async function primaryContact(sellerId) {
  * cold-call strangers who never opted in. Until the seller records come from a
  * genuine data source, only a number a human typed is safe to actually ring.
  */
+/** Plain-English explanation of why a dial did not ring a real phone. */
+const SIMULATED_EXPLANATION = {
+  no_voice_credentials: 'No voice credentials are configured, so this call was simulated rather than placed.',
+  live_dialling_disabled: 'Live dialling is turned off (LIVE_DIAL_SCOPE=none), so this call was simulated.',
+  seeded_number_not_dialled: 'This is a seeded demo number, which is never dialled for real — the call was simulated. Type a number into Start dial to place a live call.'
+};
+
 const LIVE_DIAL_SCOPE = (process.env.LIVE_DIAL_SCOPE || 'manual').toLowerCase();
 
 function liveDialAllowed({ manual }) {
@@ -446,6 +454,17 @@ async function dial({ phone, lead, seller, contact, scriptVariant, rng, startedA
     ? 'no_voice_credentials'
     : (LIVE_DIAL_SCOPE === 'none' ? 'live_dialling_disabled' : 'seeded_number_not_dialled');
 
+  /*
+   * Fabricating a call was worse than refusing one. A simulated row is
+   * indistinguishable from a real call that failed, so the console filled with
+   * calls that never happened and the provider integration looked broken.
+   * Refuse instead, and say why — set ALLOW_SIMULATED_DIALS=true to get the
+   * old demo behaviour back.
+   */
+  if (process.env.ALLOW_SIMULATED_DIALS !== 'true') {
+    return { error: SIMULATED_EXPLANATION[simulatedReason] || 'This call cannot be placed.', refused: true };
+  }
+
   const preview = buildCall({ seller, lead, rng, startedAt, scriptVariant });
   return {
     provider: 'simulated',
@@ -460,12 +479,6 @@ async function dial({ phone, lead, seller, contact, scriptVariant, rng, startedA
 }
 
 
-/** Plain-English explanation of why a dial did not ring a real phone. */
-const SIMULATED_EXPLANATION = {
-  no_voice_credentials: 'No voice credentials are configured, so this call was simulated rather than placed.',
-  live_dialling_disabled: 'Live dialling is turned off (LIVE_DIAL_SCOPE=none), so this call was simulated.',
-  seeded_number_not_dialled: 'This is a seeded demo number, which is never dialled for real — the call was simulated. Type a number into Start dial to place a live call.'
-};
 
 const handlers = {
   /**
@@ -519,7 +532,9 @@ const handlers = {
     });
 
     if (started.error) {
-      return { status: 502, payload: { error: `Could not place the call: ${started.error}` } };
+      return started.refused
+        ? { status: 400, payload: { error: started.error, refused: true } }
+        : { status: 502, payload: { error: `Could not place the call: ${started.error}` } };
     }
 
     await insertRow('AgentRun', {
@@ -587,6 +602,28 @@ const handlers = {
           : null
       }
     };
+  },
+
+  /**
+   * Reconciles the console against the voice provider — the authority on what
+   * actually happened. Adopts calls the app never recorded and backfills
+   * transcripts that arrived after a call was settled.
+   */
+  async syncProviderCalls(req) {
+    if (!hasCap(req.user.role, CAPS.DIAL)) {
+      return { status: 403, payload: { error: `Your role (${req.user.role}) is not permitted to sync calls.` } };
+    }
+    const result = await syncFromProvider();
+    if (!result.ok) return { status: 400, payload: { error: result.error } };
+
+    await audit({
+      actor_type: 'user',
+      actor_name: req.user.full_name || req.user.email,
+      action: 'provider_sync',
+      entity_type: 'AgentRun',
+      summary: `Synced ${result.executions} provider execution(s); ${result.changed} record(s) changed`
+    });
+    return { status: 200, payload: result };
   },
 
   /** Metric catalogue for the experiment builder. */
@@ -734,7 +771,9 @@ const handlers = {
       scriptVariant: body?.script_variant
     });
     if (started.error) {
-      return { status: 502, payload: { error: `Could not place the call: ${started.error}` } };
+      return started.refused
+        ? { status: 400, payload: { error: started.error, refused: true } }
+        : { status: 502, payload: { error: `Could not place the call: ${started.error}` } };
     }
 
     await insertRow('AgentRun', {

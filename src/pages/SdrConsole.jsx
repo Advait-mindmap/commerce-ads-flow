@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { Phone } from 'lucide-react';
+import { Phone, RefreshCw } from 'lucide-react';
 import { api } from '@/api/client';
 import { Button } from '@/components/ui/button';
 import { useToast } from '@/components/ui/use-toast';
@@ -22,6 +22,7 @@ export default function SdrConsole() {
   const [runs, setRuns] = useState(null);
   const [leads, setLeads] = useState([]);
   const [modalOpen, setModalOpen] = useState(false);
+  const [syncing, setSyncing] = useState(false);
   const [dialOpen, setDialOpen] = useState(false);
   const { toast } = useToast();
   const { hasCap } = useAuth();
@@ -120,6 +121,35 @@ export default function SdrConsole() {
         )}
         {canDial ? (
           <div className="ml-auto flex items-center gap-2">
+            {/* The provider is the authority on what happened. This pulls
+                anything the webhook missed, including calls placed outside
+                the app, and backfills transcripts that arrived late. */}
+            <Button
+              size="sm"
+              variant="outline"
+              className="h-8 text-xs bg-white"
+              disabled={syncing}
+              onClick={async () => {
+                setSyncing(true);
+                try {
+                  const res = await api.functions.invoke('syncProviderCalls', {});
+                  const d = res?.data || res;
+                  if (d?.error) throw new Error(d.error);
+                  setRuns(await api.entities.AgentRun.list('-started_at', 500));
+                  toast({
+                    title: d.changed ? `Synced ${d.changed} call${d.changed === 1 ? '' : 's'}` : 'Already up to date',
+                    description: `${d.executions} call${d.executions === 1 ? '' : 's'} on the voice provider`
+                  });
+                } catch (err) {
+                  toast({ title: 'Sync failed', description: err.message, variant: 'destructive' });
+                } finally {
+                  setSyncing(false);
+                }
+              }}
+            >
+              <RefreshCw className={`w-3.5 h-3.5 mr-1.5 ${syncing ? 'animate-spin' : ''}`} />
+              {syncing ? 'Syncing…' : 'Sync from provider'}
+            </Button>
             <Button size="sm" variant="outline" className="h-8 text-xs bg-white" onClick={() => setDialOpen(true)}>
               <Phone className="w-3.5 h-3.5 mr-1.5" /> Start dial
             </Button>

@@ -216,17 +216,52 @@ export async function fetchExecution(callId, { agentId } = {}) {
 }
 
 /** Pulls the pieces we care about out of an execution/webhook payload. */
+/**
+ * Every execution the provider holds for the agent, newest first.
+ *
+ * This is the authority on what actually happened: a call placed from the
+ * provider's own console, or one whose webhook never arrived, exists here and
+ * nowhere else, so the app can only be complete by reading this list.
+ */
+export async function listExecutions({ agentId } = {}) {
+  const cfg = providerConfig();
+  const id = agentId || cfg.agentId;
+  if (!cfg.apiKey || !id) return [];
+
+  const res = await request(`/agent/${id}/executions`, { method: 'GET' });
+  if (!res.ok) {
+    console.error('[voice] could not list executions:', res.error || res.status);
+    return [];
+  }
+  const body = res.data;
+  const list = Array.isArray(body) ? body : (body?.data || body?.executions || []);
+  return list.filter(Boolean);
+}
+
 export function readExecution(data) {
   if (!data) return null;
   const rawTranscript =
     data.transcript || (data.data && data.data.transcript) || (data.call && data.call.transcript) || data.messages;
+  /*
+   * telephony_data is what the carrier actually reported, so it is preferred
+   * over the top-level fields — a completion event routinely carries
+   * conversation_duration: 0 while the carrier already knows the real length.
+   */
+  const tel = data.telephony_data || {};
+
   return {
     rawStatus: data.status || data.call_status || data.state || null,
     status: mapStatus(data.status || data.call_status || data.state),
     transcript: withTimestamps(normalizeTranscript(rawTranscript)),
-    duration_sec: Number(data.duration || data.duration_seconds || data.call_duration || data.conversation_duration || 0) || 0,
-    recording_url: data.recording_url || data.recordingUrl || null,
-    cost_usd: Number(data.cost || data.total_cost || 0) || 0
+    duration_sec:
+      Number(tel.duration || data.duration || data.duration_seconds || data.call_duration || data.conversation_duration || 0) || 0,
+    recording_url: tel.recording_url || data.recording_url || data.recordingUrl || null,
+    cost_usd: Number(data.cost || data.total_cost || 0) || 0,
+    // Who was actually dialled, and the context the agent was given — enough to
+    // attribute a call the app never recorded.
+    to_number: tel.to_number || data.user_number || null,
+    from_number: tel.from_number || data.agent_number || null,
+    recipient: (data.context_details && data.context_details.recipient_data) || null
   };
 }
 
