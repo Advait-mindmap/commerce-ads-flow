@@ -127,7 +127,9 @@ Rules that decide the record:
 - A seller who says they will "think about it" or "call back later" has not booked a meeting. A meeting needs an agreed time or a clear yes to a specific slot.
 - Quote the seller in the original language for verbatim fields. Do not translate them.
 - confidence reflects how many of the five facts the call established, not how confident you are in your reading. A call that established two of five is around 0.4 even if both were unmistakable.
+- Record an objection whenever the seller gives a reason not to proceed, in any language. Past failure ("we tried Google Ads and it did not work", "paise waste hue") is tried_before_failed. Cost worry is price_sensitivity. Being busy or asked to call later is no_time. Needing someone else to agree is needs_approval. Doubt about the marketplace or the caller is trust_concern or platform_blame. Record these even when the seller stays friendly and even when the call ends well — a booked meeting does not erase the objection raised on the way there.
 - Record a guardrail event whenever the seller pushes for a price, a guaranteed return, or contract terms — whether or not the agent handled it well. Set agent_deflected to false if the agent named a figure or made a promise, because that is a compliance breach someone needs to see.
+- The two lists are independent, not alternatives. A seller pressing on cost is usually both a price_sensitivity objection and a pricing_question guardrail; record it in both.
 
 If the transcript is too short or garbled to establish anything, say so in the summary and leave the fields unestablished rather than guessing.`;
 
