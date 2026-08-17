@@ -8,11 +8,15 @@ import LiftRangeBar from '@/components/experiments/LiftRangeBar';
 import StatsGrid from '@/components/experiments/StatsGrid';
 import GuardrailsTable from '@/components/experiments/GuardrailsTable';
 import DecisionLog from '@/components/experiments/DecisionLog';
+import LogCasePanel from '@/components/experiments/LogCasePanel';
+import { useToast } from '@/components/ui/use-toast';
 import { dateOnly } from '@/lib/format';
 
 export default function ExperimentDetail() {
   const { id } = useParams();
   const [data, setData] = useState(null);
+  const [logging, setLogging] = useState(false);
+  const { toast } = useToast();
 
   useEffect(() => {
     (async () => {
@@ -69,6 +73,28 @@ export default function ExperimentDetail() {
         </div>
         <StatsGrid exp={exp} />
       </div>
+
+      {/* Logging a case re-runs the analysis, so the arms and the lift above
+          move with it rather than needing a separate refresh. */}
+      <LogCasePanel
+        exp={exp}
+        busy={logging}
+        onLog={async (payload) => {
+          setLogging(true);
+          try {
+            const res = await api.functions.invoke('logExperimentObservation', { experiment_id: exp.id, ...payload });
+            const body = res?.data || res;
+            if (body?.error) throw new Error(body.error);
+            setData((d) => ({ ...d, exp: body.experiment }));
+            toast({
+              title: 'Case logged',
+              description: `${body.observation.arm} · ${body.observation.converted ? 'converted' : 'did not convert'} · ${body.logged_cases} logged in total`
+            });
+          } finally {
+            setLogging(false);
+          }
+        }}
+      />
 
       <GuardrailsTable guardrails={exp.guardrails} />
       <DecisionLog exp={exp} logs={logs} />

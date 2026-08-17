@@ -247,12 +247,36 @@ function countMetric(experiment, metricKey, units) {
  * Recomputes an experiment's arms, guardrails and statistics from the units it
  * governs. `populations` maps unit type → records.
  */
+/**
+ * Folds hand-logged cases into the counts derived from the population.
+ *
+ * An experiment otherwise only moves as the funnel produces units, which is
+ * right for a live test and useless when someone is running one deliberately
+ * and wants to record what they saw. A logged case is an extra observation in
+ * its arm, counted the same way as a derived one, so the statistics stay
+ * honest — there is no separate maths for hand-entered rows.
+ */
+function withObservations(arms, experiment) {
+  const merged = {
+    control: { ...arms.control },
+    treatment: { ...arms.treatment }
+  };
+  for (const o of experiment.observations || []) {
+    const arm = o.arm === 'treatment' ? 'treatment' : 'control';
+    merged[arm].n += 1;
+    if (o.converted) merged[arm].x += 1;
+  }
+  return merged;
+}
+
 export function analyseExperiment(experiment, populations) {
   const metric = METRIC_CATALOGUE[experiment.primary_metric];
   if (!metric) return null;
 
   const units = populations[metric.unit] || [];
-  const arms = countMetric(experiment, experiment.primary_metric, units);
+  // Guardrails stay derived from the population; a logged case records the
+  // primary metric only, which is the thing the operator actually observed.
+  const arms = withObservations(countMetric(experiment, experiment.primary_metric, units), experiment);
   const { control, treatment } = arms;
 
   const fixed = twoProportionTest(control.n, control.x, treatment.n, treatment.x);
@@ -306,7 +330,9 @@ export function analyseExperiment(experiment, populations) {
       : null,
     analysed_at: new Date().toISOString(),
     metric_definition: metric.describes,
-    assignment_method: 'Deterministic SHA-256 hash of (experiment_key, unit_id)'
+    assignment_method: 'Deterministic SHA-256 hash of (experiment_key, unit_id)',
+    // Said plainly, so a reader knows how much of the result was hand-entered.
+    logged_cases: (experiment.observations || []).length
   };
 }
 

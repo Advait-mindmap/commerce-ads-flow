@@ -19,6 +19,7 @@ import { analyseTranscript } from './qualify.js';
 import { syncFromProvider } from './provider-sync.js';
 import {
   analyseExperiment,
+  assignArm,
   assignmentsFor,
   metricCatalogue,
   validateDefinition
@@ -624,6 +625,72 @@ const handlers = {
       summary: `Synced ${result.executions} provider execution(s); ${result.changed} record(s) changed`
     });
     return { status: 200, payload: result };
+  },
+
+  /**
+   * Records one observed case against a running experiment.
+   *
+   * An experiment otherwise only accumulates as the funnel produces units. This
+   * lets someone running one deliberately record what they saw, and the case is
+   * counted exactly like a derived unit so the statistics do not diverge.
+   */
+  async logExperimentObservation(req, body) {
+    if (!hasCap(req.user.role, CAPS.APPROVE_OPTIMIZATION) && req.user.role !== 'admin') {
+      return { status: 403, payload: { error: `Your role (${req.user.role}) cannot log experiment cases.` } };
+    }
+
+    const experiment = body?.experiment_id ? await getRow('Experiment', body.experiment_id) : null;
+    if (!experiment) return { status: 404, payload: { error: 'That experiment was not found.' } };
+    if (experiment.status !== 'running') {
+      return { status: 400, payload: { error: `This experiment is ${experiment.status}. Only a running experiment accumulates cases.` } };
+    }
+
+    /*
+     * If a unit is named, its arm is computed the same way the engine assigns
+     * every other unit — so a case cannot be filed into the arm someone would
+     * prefer, which is the way a hand-logged experiment goes wrong.
+     */
+    const unitRef = String(body?.unit_ref || '').trim();
+    const derivedArm = unitRef
+      ? assignArm(experiment.experiment_key, unitRef, {
+          split: experiment.traffic_split ?? 0.5,
+          exposure: experiment.exposure ?? 1
+        })
+      : null;
+    const arm = derivedArm || (body?.arm === 'treatment' ? 'treatment' : body?.arm === 'control' ? 'control' : null);
+    if (!arm) {
+      return { status: 400, payload: { error: 'Give a unit reference to assign the arm, or choose one explicitly.' } };
+    }
+    if (typeof body?.converted !== 'boolean') {
+      return { status: 400, payload: { error: 'Say whether the case converted on the primary metric.' } };
+    }
+
+    const observation = {
+      id: newEntityId('obs'),
+      arm,
+      arm_source: derivedArm ? 'assigned' : 'chosen',
+      converted: body.converted,
+      unit_ref: unitRef || null,
+      note: String(body?.note || '').slice(0, 500) || null,
+      logged_by: req.user.full_name || req.user.email,
+      logged_at: new Date().toISOString()
+    };
+
+    const observations = [...(experiment.observations || []), observation];
+    const analysis = await analyseOne({ ...experiment, observations });
+    const saved = await patchRow('Experiment', experiment.id, { observations, ...(analysis || {}) });
+
+    await audit({
+      actor_type: 'human_rep',
+      actor_name: req.user.full_name || req.user.email,
+      action: 'experiment_case_logged',
+      entity_type: 'Experiment',
+      entity_id: experiment.id,
+      entity_name: experiment.name,
+      summary: `Logged a ${arm} case that ${body.converted ? 'converted' : 'did not convert'}${unitRef ? ` for ${unitRef}` : ''}`
+    });
+
+    return { status: 200, payload: { experiment: saved, observation, logged_cases: observations.length } };
   },
 
   /** Metric catalogue for the experiment builder. */
