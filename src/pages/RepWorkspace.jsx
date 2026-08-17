@@ -60,14 +60,20 @@ export default function RepWorkspace() {
     return (eligible.length ? eligible : packages).slice().sort((a, b) => (b.historical_close_rate || 0) - (a.historical_close_rate || 0))[0] || null;
   }, [selected, packages]);
 
-  const lastInteraction = selected ? interactions.find((i) => i.lead_id === selected.id || i.seller_id === selected.seller_id) : null;
+  // Most recent first, so the panel shows the latest rather than whichever
+  // record happened to be earliest in the array.
+  const lastInteraction = selected
+    ? interactions
+      .filter((i) => i.lead_id === selected.id || i.seller_id === selected.seller_id)
+      .sort((a, b) => new Date(b.started_at || 0) - new Date(a.started_at || 0))[0] || null
+    : null;
 
   if (!leads) return <div className="p-6 text-sm text-slate-500">Loading workspace…</div>;
 
   const logAndNext = async ({ outcome, objections, nextAction, notes }) => {
     if (!selected) return;
     setBusy(true);
-    await api.entities.Interaction.create({
+    const logged = await api.entities.Interaction.create({
       seller_id: selected.seller_id,
       seller_name: selected.seller_name,
       lead_id: selected.id,
@@ -86,6 +92,14 @@ export default function RepWorkspace() {
     if (nextAction === 'add_to_nurture') patch.stage = 'nurture';
     if (nextAction === 'book_meeting') { patch.meeting_status = 'booked'; patch.meeting_booked_by = 'human'; }
     await api.entities.Lead.update(selected.id, patch);
+
+    /*
+     * Put the new interaction into the list the page reads. Without this the
+     * record was written but the panel kept showing the state from page load,
+     * so a rep who logged a call and came back to the lead saw no sign of it.
+     * The list is held newest-first, which is the order the panel relies on.
+     */
+    if (logged) setInteractions((rows) => [logged, ...rows]);
 
     const remaining = queue.filter((l) => l.id !== selected.id);
     setLeads((ls) => ls.map((l) => (l.id === selected.id ? { ...l, ...patch } : l)));
