@@ -19,6 +19,9 @@ export default function RepWorkspace() {
   const [sellers, setSellers] = useState([]);
   const [packages, setPackages] = useState([]);
   const [interactions, setInteractions] = useState([]);
+  // Leads dispositioned in this session. They stay in the list so the rep can
+  // see what they logged instead of the row disappearing on click.
+  const [justWorked, setJustWorked] = useState([]);
   const [tab, setTab] = useState('all');
   const [selectedId, setSelectedId] = useState(null);
   const [busy, setBusy] = useState(false);
@@ -39,7 +42,7 @@ export default function RepWorkspace() {
 
   const queue = useMemo(() => {
     if (!leads) return [];
-    let rows = leads.filter((l) => OPEN_STAGES.includes(l.stage));
+    let rows = leads.filter((l) => OPEN_STAGES.includes(l.stage) || justWorked.includes(l.id));
     if (tab === 'a') rows = rows.filter((l) => l.pta_band === 'A');
     if (tab === 'sla') rows = rows.filter((l) => l.sla_status === 'breached' || l.sla_status === 'at_risk');
     if (tab === 'callback') rows = rows.filter((l) => l.agent_disposition === 'callback_requested' || l.meeting_status === 'rescheduled');
@@ -48,7 +51,7 @@ export default function RepWorkspace() {
       if (r) return r;
       return (b.pta_score || 0) - (a.pta_score || 0);
     });
-  }, [leads, tab]);
+  }, [leads, tab, justWorked]);
 
   const selected = queue.find((l) => l.id === selectedId) || queue[0] || null;
   const seller = selected ? sellers.find((s) => s.id === selected.seller_id) : null;
@@ -70,7 +73,7 @@ export default function RepWorkspace() {
 
   if (!leads) return <div className="p-6 text-sm text-slate-500">Loading workspace…</div>;
 
-  const logAndNext = async ({ outcome, objections, nextAction, notes }) => {
+  const logDisposition = async ({ outcome, objections, nextAction, notes }) => {
     if (!selected) return;
     setBusy(true);
     const logged = await api.entities.Interaction.create({
@@ -101,11 +104,17 @@ export default function RepWorkspace() {
      */
     if (logged) setInteractions((rows) => [logged, ...rows]);
 
-    const remaining = queue.filter((l) => l.id !== selected.id);
     setLeads((ls) => ls.map((l) => (l.id === selected.id ? { ...l, ...patch } : l)));
-    setSelectedId(remaining[0] ? remaining[0].id : null);
+    // Stay put. The rep has just recorded something and needs to see it land.
+    setJustWorked((ids) => (ids.includes(selected.id) ? ids : [...ids, selected.id]));
     setBusy(false);
     toast({ title: 'Logged', description: `${selected.seller_name} · ${outcome.replace(/_/g, ' ')}` });
+  };
+
+  const goToNext = () => {
+    const idx = queue.findIndex((l) => l.id === selected?.id);
+    const next = queue[idx + 1] || queue.find((l) => !justWorked.includes(l.id)) || null;
+    setSelectedId(next ? next.id : null);
   };
 
   const handleCallNow = async () => {
@@ -148,7 +157,7 @@ export default function RepWorkspace() {
           )}
           <OpenWith line={selected.suggested_opening_line} />
           <LeadSnapshot seller={seller} pkg={pkg} interactions={leadInteractions} />
-          <DispositionForm onLog={logAndNext} busy={busy} />
+          <DispositionForm onLog={logDisposition} onNext={goToNext} busy={busy} />
         </div>
       ) : (
         <div className="bg-white border border-slate-200 rounded-lg p-10 text-center text-sm text-slate-500">Queue is clear — nothing to work right now.</div>

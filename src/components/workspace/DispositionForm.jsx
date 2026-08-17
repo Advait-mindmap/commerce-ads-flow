@@ -8,7 +8,7 @@ const OUTCOMES = ['connected_interested', 'connected_not_interested', 'meeting_b
 const OBJECTIONS = ['budget', 'timing', 'trust_roas', 'needs_approval', 'agency_managed', 'tried_before', 'not_priority'];
 const NEXT_ACTIONS = ['book_meeting', 'send_proposal', 'schedule_callback', 'add_to_nurture', 'disqualify'];
 
-export default function DispositionForm({ onLog, busy }) {
+export default function DispositionForm({ onLog, onNext, busy }) {
   const [outcome, setOutcome] = useState('');
   const [objections, setObjections] = useState([]);
   const [nextAction, setNextAction] = useState('');
@@ -64,8 +64,15 @@ export default function DispositionForm({ onLog, busy }) {
         <Textarea value={notes} onChange={(e) => setNotes(e.target.value)} rows={3} className="mt-1 text-xs" placeholder="What did the seller say?" />
       </div>
 
-      <div className="flex justify-end mt-3">
-        <Button size="sm" className="h-8 text-xs" disabled={!outcome || busy} onClick={submit}>Log and next</Button>
+      <div className="flex items-center justify-end gap-2 mt-3">
+        {onNext && (
+          <Button size="sm" variant="outline" className="h-8 text-xs" disabled={busy} onClick={onNext}>
+            Next lead
+          </Button>
+        )}
+        <Button size="sm" className="h-8 text-xs" disabled={!outcome || busy} onClick={submit}>
+          Log interaction
+        </Button>
       </div>
     </Panel>
   );
