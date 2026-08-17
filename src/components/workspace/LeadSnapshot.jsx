@@ -12,7 +12,7 @@ function Stat({ label, value, sub }) {
   );
 }
 
-export default function LeadSnapshot({ seller, pkg, lastInteraction }) {
+export default function LeadSnapshot({ seller, pkg, interactions = [] }) {
   return (
     <div className="grid grid-cols-1 xl:grid-cols-2 gap-4">
       <Panel title="Seller snapshot">
@@ -58,25 +58,42 @@ export default function LeadSnapshot({ seller, pkg, lastInteraction }) {
           ) : <p className="text-xs text-slate-500">No eligible package for this budget band.</p>}
         </Panel>
 
-        <Panel title="Previous interaction">
-          {lastInteraction ? (
-            <>
-              <div className="flex items-center gap-2 text-[11px] text-slate-500">
-                <span className="uppercase tracking-wide">{(lastInteraction.channel || '').replace(/_/g, ' ')}</span>
-                <span>·</span>
-                <span>{lastInteraction.actor_name}</span>
-                <span>·</span>
-                <span className="tabular-nums">{dateTime(lastInteraction.started_at)}</span>
-              </div>
-              <p className="text-[13px] text-slate-800 mt-2">{lastInteraction.summary}</p>
-              {(lastInteraction.objections || []).length > 0 && (
-                <div className="flex flex-wrap gap-1 mt-2">
-                  {lastInteraction.objections.map((o, i) => (
-                    <span key={i} className="text-[11px] border border-slate-200 bg-slate-50 rounded px-1.5 py-0.5 text-slate-600">{o.replace(/_/g, ' ')}</span>
-                  ))}
-                </div>
+        {/* A rep picking this lead up needs the history, not the latest line:
+            who spoke to them, what came of it, and what they objected to. The
+            outcome was previously not shown at all — only the free-text note. */}
+        <Panel title={interactions.length > 1 ? `Interaction history (${interactions.length})` : 'Previous interaction'}>
+          {interactions.length ? (
+            <ol className="space-y-3">
+              {interactions.slice(0, 5).map((it, idx) => (
+                <li key={it.id || idx} className={idx ? 'pt-3 border-t border-slate-100' : ''}>
+                  <div className="flex items-center flex-wrap gap-x-2 gap-y-1 text-[11px] text-slate-500">
+                    <span className="uppercase tracking-wide">{(it.channel || '').replace(/_/g, ' ')}</span>
+                    <span>·</span>
+                    <span>{it.actor_name}</span>
+                    <span>·</span>
+                    <span className="tabular-nums">{dateTime(it.started_at)}</span>
+                    {it.outcome && (
+                      <span className="ml-auto text-[11px] border border-slate-200 bg-slate-50 rounded px-1.5 py-0.5 text-slate-700">
+                        {String(it.outcome).replace(/_/g, ' ')}
+                      </span>
+                    )}
+                  </div>
+                  {it.summary && <p className="text-[13px] text-slate-800 mt-1.5">{it.summary}</p>}
+                  {(it.objections || []).length > 0 && (
+                    <div className="flex flex-wrap gap-1 mt-1.5">
+                      {it.objections.map((o, i) => (
+                        <span key={i} className="text-[11px] border border-amber-200 bg-amber-50 rounded px-1.5 py-0.5 text-amber-800">{String(o).replace(/_/g, ' ')}</span>
+                      ))}
+                    </div>
+                  )}
+                </li>
+              ))}
+              {interactions.length > 5 && (
+                <li className="pt-2 text-[11px] text-slate-500">
+                  and {interactions.length - 5} earlier — full timeline on Seller 360
+                </li>
               )}
-            </>
+            </ol>
           ) : <p className="text-xs text-slate-500">First touch — no prior interaction logged.</p>}
         </Panel>
       </div>

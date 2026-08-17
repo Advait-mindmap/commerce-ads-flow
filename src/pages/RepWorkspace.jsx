@@ -60,13 +60,13 @@ export default function RepWorkspace() {
     return (eligible.length ? eligible : packages).slice().sort((a, b) => (b.historical_close_rate || 0) - (a.historical_close_rate || 0))[0] || null;
   }, [selected, packages]);
 
-  // Most recent first, so the panel shows the latest rather than whichever
-  // record happened to be earliest in the array.
-  const lastInteraction = selected
+  // Everything that has happened with this seller, newest first. A rep picking
+  // the lead up needs the history, not just the most recent line.
+  const leadInteractions = selected
     ? interactions
       .filter((i) => i.lead_id === selected.id || i.seller_id === selected.seller_id)
-      .sort((a, b) => new Date(b.started_at || 0) - new Date(a.started_at || 0))[0] || null
-    : null;
+      .sort((a, b) => new Date(b.started_at || 0) - new Date(a.started_at || 0))
+    : [];
 
   if (!leads) return <div className="p-6 text-sm text-slate-500">Loading workspace…</div>;
 
@@ -147,7 +147,7 @@ export default function RepWorkspace() {
             </Alert>
           )}
           <OpenWith line={selected.suggested_opening_line} />
-          <LeadSnapshot seller={seller} pkg={pkg} lastInteraction={lastInteraction} />
+          <LeadSnapshot seller={seller} pkg={pkg} interactions={leadInteractions} />
           <DispositionForm onLog={logAndNext} busy={busy} />
         </div>
       ) : (
